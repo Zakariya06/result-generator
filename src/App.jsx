@@ -1,16 +1,55 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-import ExcelMultiUploader from './components/ExcelUploader'
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import SignIn from "./pages/SignIn";
+import Header from "./components/Header";
+import CreateResult from "./pages/CreateResult";
+import Construction from "./pages/Construction";
+import AddedSubjects from "./pages/AddedSubjects";
+import ProtectedRoute from "./hoc/ProtectedRoute";
+import PublicRoute from "./hoc/PublicRoute";
 
-function App() { 
-
+function App() {
   return (
     <>
-     <ExcelMultiUploader />
+      <BrowserRouter>
+        <Header />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <PublicRoute>
+                <SignIn />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/create-result"
+            element={
+              <ProtectedRoute>
+                <CreateResult />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/construction"
+            element={
+              <ProtectedRoute>
+                <Construction />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/subjects"
+            element={
+              <ProtectedRoute>
+                <AddedSubjects />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </BrowserRouter>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
