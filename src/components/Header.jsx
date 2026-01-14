@@ -1,8 +1,9 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/KMU_logo.jpg";
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     localStorage.removeItem("isAuth");
@@ -12,20 +13,18 @@ const Header = () => {
   return (
     <header className="appHeader">
       <div className="headerLogo">
-        <img
-          src={logo}
-          alt="logo"
-          className="kmuLogo"
-        />
+        <img src={logo} alt="logo" className="kmuLogo" />
       </div>
       <div className="headerRight">
-        <button
-          onClick={handleLogout}
-          className="primaryButton"
-          style={{ marginTop: "0" }}
-        >
-          logout
-        </button>
+        {location.pathname !== "/" && (
+          <button
+            onClick={handleLogout}
+            className="primaryButton"
+            style={{ marginTop: "0" }}
+          >
+            logout
+          </button>
+        )}
       </div>
     </header>
   );

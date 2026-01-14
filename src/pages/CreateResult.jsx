@@ -16,14 +16,14 @@ export default function CreateResult() {
             className="secondaryButton"
             onClick={() => setShowCs(!showCs)}
           >
-            CS
+            Combine Sheet
           </button>
 
           <button
             className="secondaryButton"
             onClick={() => navigate("/construction")}
           >
-            MS
+            Final Sheet
           </button>
         </div>
 

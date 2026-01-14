@@ -1,51 +1,85 @@
-import { useNavigate } from "react-router-dom";
 import { useSubject } from "../context/SubjectContext";
 
-export default function AddedSubjects() {
+export default function MarksSheet() {
   const { subjects } = useSubject();
-  const navigate = useNavigate();
+
+  // 🔁 Build column structure
+  const columns = subjects.flatMap((s) => {
+    const base = [
+      {
+        label: s.subject,
+        key: s.subject,
+      },
+    ];
+
+    if (s.ospe) {
+      base.push({
+        label: `${s.subject} - OSPE`,
+        key: `${s.subject}-ospe`,
+      });
+    }
+
+    return base;
+  });
 
   return (
     <div className="pageCenter">
-      <div className="cardLarge">
-        <h2>Generated Subjects</h2>
+      <div
+        className="cardLarge"
+        style={{ overflowX: "auto", maxWidth: "100%", width: "fit-content" }}
+      >
+        <h2>Result Sheet</h2>
 
-        {subjects.length === 0 ? (
-          <p>No subjects found</p>
-        ) : (
-          <table className="customTable">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Subject</th>
-                <th>OSPE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {subjects.map((item, index) => (
-                <tr key={index}>
-                  <td>{index + 1}</td>
-                  <td>{item.subject}</td>
-                  <td>
-                    <span
-                      className={item.ospe ? "ospeBadgeYes" : "ospeBadgeNo"}
-                    >
-                      {item.ospe ? "Yes" : "No"}
-                    </span>
-                  </td>
-                </tr>
+        <table className="customTable resultTable">
+          <thead>
+            {/* ===== ROW 1: MAIN HEADERS ===== */}
+            <tr>
+              <th rowSpan="2">S#</th>
+              <th rowSpan="2">Roll #</th>
+              <th rowSpan="2">Name</th>
+              <th rowSpan="2">Father’s Name</th>
+              <th rowSpan="2">Registration</th>
+              <th rowSpan="2">Discipline</th>
+              <th rowSpan="2">Institute</th>
+
+              {columns.map((col) => (
+                <th key={col.key} colSpan="3">
+                  {col.label}
+                </th>
               ))}
-            </tbody>
-          </table>
-        )}
+            </tr>
+ 
+            <tr>
+              {columns.map((col) => (
+                <>
+                  <th key={`${col.key}-mid`}>Mid</th>
+                  <th key={`${col.key}-final`}>Final</th>
+                  <th key={`${col.key}-total`}>Total</th>
+                </>
+              ))}
+            </tr>
+          </thead>
 
-        <button
-          className="primaryButton"
-          style={{ marginTop: "1.5rem" }}
-          onClick={() => navigate(-1)}
-        >
-          Back
-        </button>
+          <tbody> 
+            <tr>
+              <td>1</td>
+              <td>CS-001</td>
+              <td>Student Name</td>
+              <td>Father Name</td>
+              <td>REG-2024</td>
+              <td>Human Nutrition</td>
+              <td>KMU IHS-Swat</td>
+
+              {columns.map((col) => (
+                <>
+                  <td>-</td>
+                  <td>-</td>
+                  <td>-</td>
+                </>
+              ))}
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );

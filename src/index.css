@@ -41,7 +41,7 @@ body {
 .signInCard,
 .cardLarge {
   background: white;
-  padding: 30px;
+  padding: 30px 40px;
   border-radius: 14px;
   max-width: 450px;
   width: 100%;
@@ -116,6 +116,11 @@ body {
 .tableInput {
   width: 100%;
   padding: 8px;
+}
+.radioGroup {
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 
 /* Extras */
