@@ -6,6 +6,7 @@ import Construction from "./pages/Construction";
 import AddedSubjects from "./pages/AddedSubjects";
 import ProtectedRoute from "./hoc/ProtectedRoute";
 import PublicRoute from "./hoc/PublicRoute";
+import UploadFiles from "./pages/UploadFiles";
 
 function App() {
   return (
@@ -34,6 +35,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Construction />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/upload-files"
+            element={
+              <ProtectedRoute>
+                <UploadFiles />
               </ProtectedRoute>
             }
           />

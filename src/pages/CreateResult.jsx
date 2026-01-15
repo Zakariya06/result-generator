@@ -8,8 +8,8 @@ export default function CreateResult() {
 
   return (
     <div className="pageCenter">
-      <div className="cardLarge">
-        <h2>Creating Result Info</h2>
+      <div className="cardLarge" style={{ maxWidth: "600px", width: "100%" }}>
+        <h2 className="text-center">Creating Result Info</h2>
 
         <div className="buttonRow">
           <button

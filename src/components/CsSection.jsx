@@ -37,7 +37,7 @@ export default function CsSection() {
     }
 
     saveSubjects(subjects);
-    navigate("/subjects");
+    navigate("/upload-files");
   };
 
   return (
@@ -62,6 +62,7 @@ export default function CsSection() {
           <table className="customTable">
             <thead>
               <tr>
+                <th>S,NO</th>
                 <th>Subject</th>
                 <th>OSPE</th>
               </tr>
@@ -69,6 +70,7 @@ export default function CsSection() {
             <tbody>
               {subjects.map((item, index) => (
                 <tr key={index}>
+                  <td>{index + 1}</td>
                   <td>
                     <input
                       className="tableInput"
@@ -87,6 +89,7 @@ export default function CsSection() {
                           name={`ospe-${index}`}
                           checked={item.ospe === true}
                           onChange={() => updateSubject(index, "ospe", true)}
+                          className="me-1"
                         />
                         Yes
                       </label>
@@ -96,6 +99,7 @@ export default function CsSection() {
                           name={`ospe-${index}`}
                           checked={item.ospe === false}
                           onChange={() => updateSubject(index, "ospe", false)}
+                          className="me-1"
                         />
                         No
                       </label>

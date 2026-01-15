@@ -23,12 +23,17 @@ export default function MarksSheet() {
   });
 
   return (
-    <div className="pageCenter">
+    <div style={{ padding: "2.5rem 1.5rem" }}>
       <div
         className="cardLarge"
-        style={{ overflowX: "auto", maxWidth: "100%", width: "fit-content" }}
+        style={{ overflowX: "auto", width: "100%", maxWidth: "100%" }}
       >
-        <h2>Result Sheet</h2>
+        <h2 style={{ textAlign: "center" }}>
+          <span style={{ color: "a22840", display: "inline-block" }}>
+            Khyber Medical University
+          </span>{" "}
+          - Peshawar
+        </h2>
 
         <table className="customTable resultTable">
           <thead>
@@ -48,7 +53,7 @@ export default function MarksSheet() {
                 </th>
               ))}
             </tr>
- 
+
             <tr>
               {columns.map((col) => (
                 <>
@@ -60,14 +65,14 @@ export default function MarksSheet() {
             </tr>
           </thead>
 
-          <tbody> 
+          <tbody>
             <tr>
               <td>1</td>
-              <td>CS-001</td>
+              <td>KMU-001</td>
               <td>Student Name</td>
               <td>Father Name</td>
               <td>REG-2024</td>
-              <td>Human Nutrition</td>
+              <td>Discipline Name</td>
               <td>KMU IHS-Swat</td>
 
               {columns.map((col) => (
