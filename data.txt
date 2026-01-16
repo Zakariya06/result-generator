@@ -22,6 +22,8 @@ export default function MarksSheet() {
     return base;
   });
 
+  console.log("this is student data");
+
   return (
     <div style={{ padding: "2.5rem 1.5rem" }}>
       <div
@@ -66,26 +68,7 @@ export default function MarksSheet() {
           </thead>
 
           <tbody>
-            {studentsData?.map((student, index) => (
-              <tr key={student.name + index + 1}>
-                <td>{index + 1}</td>
-                <td>{student.rollNumber}</td>
-                <td>{student.name}</td>
-                <td>{student.fatherName}</td>
-                <td>{student.registration}</td>
-                <td>{student.Discipline}</td>
-                <td>{student.institute}</td>
-
-                {columns.map((col) => (
-                  <>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                  </>
-                ))}
-              </tr>
-            ))}
-            {/* <tr>
+            <tr>
               <td>1</td>
               <td>KMU-001</td>
               <td>Student Name</td>
@@ -101,7 +84,7 @@ export default function MarksSheet() {
                   <td>-</td>
                 </>
               ))}
-            </tr> */}
+            </tr>
           </tbody>
         </table>
       </div>
