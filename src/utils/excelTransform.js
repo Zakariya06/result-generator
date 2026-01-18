@@ -1,13 +1,8 @@
 /* ================================
    Helpers
 ================================ */
-const normalize = (value = "") =>
-  value.toString().trim().toLowerCase();
+const normalize = (value = "") => value.toString().trim().toLowerCase();
 
-/* ================================
-   1️⃣ Transform Marks / OSPE Sheets
-   (supports MULTIPLE files)
-================================ */
 export const transformExcelData = (rawData, fileName) => {
   if (!rawData || rawData.length < 4) return [];
 
@@ -64,10 +59,6 @@ export const transformExcelData = (rawData, fileName) => {
   });
 };
 
-/* ================================
-   2️⃣ Transform Student Lists
-   (Subjects → array, MULTI files)
-================================ */
 export const transformStudentListFiles = (allFilesData) => {
   const students = [];
 
@@ -130,11 +121,7 @@ export const transformStudentListFiles = (allFilesData) => {
   return students;
 };
 
-/* ================================
-   3️⃣ Merge Both Lists (MULTI FILE)
-================================ */
 export const mergeFileData = (file1Data, file2Data) => {
-  // Fast lookup by registration
   const map = new Map();
 
   file2Data.forEach((s) => {
@@ -144,13 +131,22 @@ export const mergeFileData = (file1Data, file2Data) => {
   });
 
   return file1Data.map((student1) => {
-    const match = map.get(normalize(student1.registration));
+    const regKey = student1.registration
+      ? normalize(student1.registration)
+      : "";
+    const match = regKey ? map.get(regKey) : null;
 
     if (!match) return student1;
+
+    const rollNumber =
+      student1.rollNumber && String(student1.rollNumber).trim()
+        ? student1.rollNumber
+        : match.rollNumber;
 
     return {
       ...student1,
       ...match,
+      rollNumber,
       subjects: [
         ...new Set([...(student1.subjects || []), ...(match.subjects || [])]),
       ],

@@ -15,7 +15,7 @@ export default function CsSection() {
       Array.from({ length: value }, () => ({
         subject: "",
         ospe: null, // 👈 important for validation
-      }))
+      })),
     );
   };
 
@@ -28,7 +28,7 @@ export default function CsSection() {
   const handleGenerate = () => {
     // ✅ validation
     const hasEmptyField = subjects.some(
-      (s) => s.subject.trim() === "" || s.ospe === null
+      (s) => s.subject.trim() === "" || s.ospe === null,
     );
 
     if (hasEmptyField) {
@@ -37,7 +37,7 @@ export default function CsSection() {
     }
 
     saveSubjects(subjects);
-    navigate("/upload-files");
+    navigate("/sheet");
   };
 
   return (

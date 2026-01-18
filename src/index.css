@@ -203,3 +203,9 @@ body {
   color: #6b7280;
   margin-top: 0.25rem;
 }
+
+.tableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

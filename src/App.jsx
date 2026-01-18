@@ -47,7 +47,7 @@ function App() {
             }
           />
           <Route
-            path="/subjects"
+            path="/sheet"
             element={
               <ProtectedRoute>
                 <AddedSubjects />

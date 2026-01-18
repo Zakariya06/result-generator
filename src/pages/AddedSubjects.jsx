@@ -1,26 +1,9 @@
+import SheetTable from "../components/SheetTable";
 import { useSubject } from "../context/SubjectContext";
+import UploadFiles from "./UploadFiles";
 
 export default function MarksSheet() {
   const { subjects, studentsData } = useSubject();
-
-  // 🔁 Build column structure
-  const columns = subjects.flatMap((s) => {
-    const base = [
-      {
-        label: s.subject,
-        key: s.subject,
-      },
-    ];
-
-    if (s.ospe) {
-      base.push({
-        label: `${s.subject} - OSPE`,
-        key: `${s.subject}-ospe`,
-      });
-    }
-
-    return base;
-  });
 
   return (
     <div style={{ padding: "2.5rem 1.5rem" }}>
@@ -28,82 +11,20 @@ export default function MarksSheet() {
         className="cardLarge"
         style={{ overflowX: "auto", width: "100%", maxWidth: "100%" }}
       >
-        <h2 style={{ textAlign: "center" }}>
-          <span style={{ color: "a22840", display: "inline-block" }}>
-            Khyber Medical University
-          </span>{" "}
-          - Peshawar
-        </h2>
+        <div className="tableHeader">
+          <UploadFiles />
 
-        <table className="customTable resultTable">
-          <thead>
-            {/* ===== ROW 1: MAIN HEADERS ===== */}
-            <tr>
-              <th rowSpan="2">S#</th>
-              <th rowSpan="2">Roll #</th>
-              <th rowSpan="2">Name</th>
-              <th rowSpan="2">Father’s Name</th>
-              <th rowSpan="2">Registration</th>
-              <th rowSpan="2">Discipline</th>
-              <th rowSpan="2">Institute</th>
+          <h2 style={{ textAlign: "center" }}>
+            <span style={{ color: "a22840", display: "inline-block" }}>
+              Khyber Medical University
+            </span>{" "}
+            - Peshawar
+          </h2>
 
-              {columns.map((col) => (
-                <th key={col.key} colSpan="3">
-                  {col.label}
-                </th>
-              ))}
-            </tr>
+          <p className="countText">{studentsData.length}</p>
+        </div>
 
-            <tr>
-              {columns.map((col) => (
-                <>
-                  <th key={`${col.key}-mid`}>Mid</th>
-                  <th key={`${col.key}-final`}>Final</th>
-                  <th key={`${col.key}-total`}>Total</th>
-                </>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {studentsData?.map((student, index) => (
-              <tr key={student.name + index + 1}>
-                <td>{index + 1}</td>
-                <td>{student.rollNumber}</td>
-                <td>{student.name}</td>
-                <td>{student.fatherName}</td>
-                <td>{student.registration}</td>
-                <td>{student.Discipline}</td>
-                <td>{student.institute}</td>
-
-                {columns.map((col) => (
-                  <>
-                    <td>-</td>
-                    <td>-</td>
-                    <td>-</td>
-                  </>
-                ))}
-              </tr>
-            ))}
-            {/* <tr>
-              <td>1</td>
-              <td>KMU-001</td>
-              <td>Student Name</td>
-              <td>Father Name</td>
-              <td>REG-2024</td>
-              <td>Discipline Name</td>
-              <td>KMU IHS-Swat</td>
-
-              {columns.map((col) => (
-                <>
-                  <td>-</td>
-                  <td>-</td>
-                  <td>-</td>
-                </>
-              ))}
-            </tr> */}
-          </tbody>
-        </table>
+        <SheetTable />
       </div>
     </div>
   );

@@ -36,8 +36,7 @@ export default function ExcelMultiUploader() {
 
     setFilesData(allFilesData);
   };
-
-  console.log("this is files data", filesData);
+ 
 
   return (
     <div style={{ padding: 20 }}>
