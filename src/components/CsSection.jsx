@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSubject } from "../context/SubjectContext";
 
+const norm = (v) => String(v || "").trim().toLowerCase();
+
 export default function CsSection() {
   const [count, setCount] = useState("");
   const [subjects, setSubjects] = useState([]);

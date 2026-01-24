@@ -7,10 +7,7 @@ export default function MarksSheet() {
 
   return (
     <div style={{ padding: "2.5rem 1.5rem" }}>
-      <div
-        className="cardLarge"
-        style={{ overflowX: "auto", width: "100%", maxWidth: "100%" }}
-      >
+      <div className="cardLarge" style={{ width: "100%", maxWidth: "100%" }}>
         <div className="tableHeader">
           <UploadFiles />
 
@@ -24,7 +21,9 @@ export default function MarksSheet() {
           <p className="countText">{studentsData.length}</p>
         </div>
 
-        <SheetTable />
+        <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
+          <SheetTable />
+        </div>
       </div>
     </div>
   );

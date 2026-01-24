@@ -35,11 +35,10 @@ export default function UploadFiles() {
     setFile2Data(mapped);
 
     if (file1Data) {
-      console.log("This is file one data", file1Data);
-      const merged = mergeFileData(file1Data, mapped);
       setShow(false);
-      saveAllStudentData(merged);
-      // console.log("Merged student data saved in context:", merged);
+      const merged = mergeFileData(file1Data, mapped);
+      console.log("This merged data", merged);
+      saveAllStudentData(merged); 
     }
   };
 
