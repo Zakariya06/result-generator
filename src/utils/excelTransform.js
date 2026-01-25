@@ -1,6 +1,8 @@
 /* ================================
    Helpers
 ================================ */
+import { useSubject } from "../context/SubjectContext";
+
 const normalize = (value = "") => value.toString().trim().toLowerCase();
 
 export const transformExcelData = (rawData, fileName) => {
@@ -75,7 +77,11 @@ export const transformStudentListFiles = (allFilesData) => {
         const k = normalize(key);
 
         if (k.includes("subject")) {
-          subjects.push(value);
+          subjects.push({
+            subject: value, // subject name/value
+            mid: "",
+            final: "",
+          });
           return;
         }
 
@@ -123,6 +129,7 @@ export const transformStudentListFiles = (allFilesData) => {
 
 export const mergeFileData = (file1Data, file2Data) => {
   const map = new Map();
+ 
 
   file2Data.forEach((s) => {
     if (s.registration) {

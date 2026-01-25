@@ -37,6 +37,7 @@ export default function UploadFiles() {
     setFile2Data(mapped);
 
     if (file1Data) {
+<<<<<<< HEAD
       const merged = mergeFileData(file1Data, mapped);
       setShow(false);
       saveAllStudentData(merged);
@@ -72,6 +73,12 @@ export default function UploadFiles() {
 
       setShow(false);
       alert("Add successfully");
+=======
+      setShow(false);
+      const merged = mergeFileData(file1Data, mapped);
+      console.log("This merged data", merged);
+      saveAllStudentData(merged); 
+>>>>>>> e031d34e8ddff1bb21355db1d95e02d04d692dbf
     }
   };
 
