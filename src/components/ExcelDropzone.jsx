@@ -37,7 +37,7 @@ export default function ExcelDropzone({ label, onData, multiple = true }) {
 
   return (
     <div className="dropzoneWrapper">
-      <label className="labelText">{label}</label>
+      <label className="labelText mb-2">{label}</label>
 
       <div
         {...getRootProps()}

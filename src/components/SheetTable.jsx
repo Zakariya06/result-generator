@@ -1,12 +1,10 @@
 import React, { useMemo } from "react";
 import { useSubject } from "../context/SubjectContext";
+import TableRows from "./tableItems/TableRows";
 
-/*  HELPERS   */
 
 const hasRA = (rollNumber) =>
-  String(rollNumber || "")
-    .toUpperCase()
-    .includes("RA");
+  String(rollNumber || "").toUpperCase().includes("RA");
 
 const parseRollNumber = (value) => {
   if (!value) return null;
@@ -14,23 +12,17 @@ const parseRollNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
+
+// sheet Table
 const SheetTable = () => {
   const { subjects, studentsData } = useSubject();
 
-  /*   BUILD COLUMNS   */
   const columns = subjects.flatMap((s) => {
     const base = [{ label: s.subject, key: s.subject }];
-
-    if (s.ospe) {
-      base.push({
-        label: `${s.subject} - OSPE`,
-        key: `${s.subject}-ospe`,
-      });
-    }
+    if (s.ospe) base.push({ label: `${s.subject} - OSPE`, key: `${s.subject}-ospe` });
     return base;
   });
 
-  /*   SORT + ASSIGN SERIAL NUMBERS   */
   const processedStudents = useMemo(() => {
     const sorted = [...(studentsData || [])].sort((a, b) => {
       const aRoll = parseRollNumber(a?.rollNumber);
@@ -40,37 +32,25 @@ const SheetTable = () => {
       if (aRoll !== null) return -1;
       if (bRoll !== null) return 1;
 
-      return String(a?.rollNumber || "").localeCompare(
-        String(b?.rollNumber || ""),
-      );
+      return String(a?.rollNumber || "").localeCompare(String(b?.rollNumber || ""));
     });
 
     let serial = 0;
-    let previousIsRA = null;
+    let previousGroupKey = null;
 
     return sorted.map((student) => {
       const isRA = hasRA(student.rollNumber);
+      const institute = String(student?.institute || "").trim().toUpperCase(); // if "institue", change here
+      const groupKey = `${institute}__${isRA ? "RA" : "NON_RA"}`;
 
-      if (previousIsRA === null || isRA !== previousIsRA) {
-        serial = 1;
-      } else {
-        serial += 1;
-      }
+      serial = previousGroupKey === groupKey ? serial + 1 : 1;
+      previousGroupKey = groupKey;
 
-      previousIsRA = isRA;
-
-      return {
-        ...student,
-        serial,
-        isRA,
-      };
+      return { ...student, serial, isRA };
     });
   }, [studentsData]);
 
-  /*   RA COUNT */
-  const totalRA = processedStudents.filter((s) => s.isRA).length;
 
-  console.log("Total RA students:", totalRA);
 
   return (
     <table className="customTable resultTable">
@@ -85,7 +65,7 @@ const SheetTable = () => {
           <th rowSpan="2">Institute</th>
 
           {columns.map((col) => (
-            <th key={col.key} colSpan="3">
+            <th key={col.key} colSpan="3" className="text-center" style={{ textTransform: 'capitalize' }}>
               {col.label}
             </th>
           ))}
@@ -103,52 +83,11 @@ const SheetTable = () => {
       </thead>
 
       <tbody>
-        {processedStudents.length === 0 ? (
-          <tr>
-            <td>1</td>
-            <td>KMU-001</td>
-            <td>Student Name</td>
-            <td>Father Name</td>
-            <td>REG-2024</td>
-            <td>Discipline Name</td>
-            <td>KMU IHS-Swat</td>
 
-            {columns.map((_, i) => (
-              <React.Fragment key={i}>
-                <td>-</td>
-                <td>-</td>
-                <td>-</td>
-              </React.Fragment>
-            ))}
-          </tr>
-        ) : (
-          processedStudents.map((student, index) => (
-            <tr
-              key={student.rollNumber + index}
-              className={student.isRA ? "ra-row" : ""}
-            >
-              {/* ✅ CUSTOM SERIAL */}
-              <td>{student.serial}</td>
+        <TableRows
+          processedStudents={processedStudents}
+          columns={columns} />
 
-              {/* ✅ ROLL NUMBER + RA FLAG */}
-              <td>{student.rollNumber}</td>
-
-              <td>{student.name}</td>
-              <td>{student.fatherName}</td>
-              <td>{student.registration}</td>
-              <td>{student.Discipline}</td>
-              <td>{student.institute}</td>
-
-              {columns.map((_, i) => (
-                <React.Fragment key={i}>
-                  <td>-</td>
-                  <td>-</td>
-                  <td>-</td>
-                </React.Fragment>
-              ))}
-            </tr>
-          ))
-        )}
       </tbody>
     </table>
   );

@@ -3,10 +3,10 @@ import SignIn from "./pages/SignIn";
 import Header from "./components/Header";
 import CreateResult from "./pages/CreateResult";
 import Construction from "./pages/Construction";
-import AddedSubjects from "./pages/AddedSubjects";
 import ProtectedRoute from "./hoc/ProtectedRoute";
 import PublicRoute from "./hoc/PublicRoute";
 import UploadFiles from "./pages/UploadFiles";
+import MarksSheet from "./pages/SheetPage";
 
 function App() {
   return (
@@ -50,7 +50,7 @@ function App() {
             path="/sheet"
             element={
               <ProtectedRoute>
-                <AddedSubjects />
+                <MarksSheet />
               </ProtectedRoute>
             }
           />

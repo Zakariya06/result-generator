@@ -1,9 +1,10 @@
+import DownloadExcelBar from "../components/DownloadExcelButton";
 import SheetTable from "../components/SheetTable";
 import { useSubject } from "../context/SubjectContext";
 import UploadFiles from "./UploadFiles";
 
 export default function MarksSheet() {
-  const { subjects, studentsData } = useSubject();
+  const { studentsData } = useSubject();
 
   return (
     <div style={{ padding: "2.5rem 1.5rem" }}>
@@ -21,11 +22,12 @@ export default function MarksSheet() {
             - Peshawar
           </h2>
 
-          <p className="countText">{studentsData.length}</p>
+          <p className="countText">Total Students {studentsData?.length}</p>
         </div>
-
         <SheetTable />
       </div>
+
+      <DownloadExcelBar />
     </div>
   );
 }
