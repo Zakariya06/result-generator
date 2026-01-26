@@ -80,13 +80,6 @@ export async function exportMarksSheetXlsx({
     right: { style: "thin" },
   };
 
-  const setRowBorder = (rowNumber) => {
-    const row = ws.getRow(rowNumber);
-    row.eachCell({ includeEmpty: true }, (cell) => {
-      cell.border = borderAll;
-    });
-  };
-
   // Column widths
   const baseWidths = [6, 18, 22, 22, 24, 16, 26]; // S#, Roll#, Name, Father, Reg, Discipline, Institute
   for (let c = 1; c <= 7; c++) ws.getColumn(c).width = baseWidths[c - 1];
@@ -196,7 +189,6 @@ export async function exportMarksSheetXlsx({
   });
 
   // Borders for title/count rows
-  // (optional but looks nicer)
   [1, 2].forEach((r) => {
     const row = ws.getRow(r);
     row.eachCell({ includeEmpty: true }, (cell) => {
@@ -250,9 +242,20 @@ export async function exportMarksSheetXlsx({
 
 // build row values in the exact order of columns
 function buildRowValues(student, columns) {
-  // row values array is 1-based for exceljs if you want, but addRow accepts 0-based list too
-  const subjectSet = student.subjects
-    ? new Set(student.subjects.map((s) => String(s).trim().toLowerCase()))
+  // ✅ FIX: subjects can be strings OR objects, build set properly
+  const subjectSet = Array.isArray(student?.subjects)
+    ? new Set(
+        student.subjects
+          .map((s) => {
+            if (typeof s === "string") return String(s).trim().toLowerCase();
+            return String(
+              s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+            )
+              .trim()
+              .toLowerCase();
+          })
+          .filter(Boolean)
+      )
     : null;
 
   const base = [
@@ -269,7 +272,6 @@ function buildRowValues(student, columns) {
   columns.forEach((col) => {
     const label = String(col.label).trim().toLowerCase();
     const val = subjectSet ? (subjectSet.has(label) ? "-" : "NA") : "-";
-
     marksCells.push(val, val, val); // Mid/Final/Total
   });
 
@@ -280,9 +282,32 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
   const row = ws.getRow(rowNumber);
   row.height = 18;
 
+  const raFill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFFF4CC" }, // soft yellow
+  };
+
+  const naFill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFFC7CE" }, // light red
+  };
+
   row.eachCell({ includeEmpty: true }, (cell) => {
     cell.border = borderAll;
     cell.alignment = { vertical: "middle", horizontal: "center", wrapText: false };
+
+    // ✅ NA cells red (priority)
+    if (String(cell.value ?? "").trim().toUpperCase() === "NA") {
+      cell.fill = naFill;
+      return;
+    }
+
+    // ✅ RA row highlight (only if not NA)
+    if (isRA) {
+      cell.fill = raFill;
+    }
   });
 
   // Align some columns left for readability
@@ -290,16 +315,4 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
   ws.getCell(rowNumber, 4).alignment = { vertical: "middle", horizontal: "left" }; // Father
   ws.getCell(rowNumber, 5).alignment = { vertical: "middle", horizontal: "left" }; // Registration
   ws.getCell(rowNumber, 7).alignment = { vertical: "middle", horizontal: "left" }; // Institute
-
-  // RA row highlight (optional)
-  if (isRA) {
-    const fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFFFF4CC" }, // soft yellow
-    };
-    for (let c = 1; c <= totalCols; c++) {
-      ws.getCell(rowNumber, c).fill = fill;
-    }
-  }
 }

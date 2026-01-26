@@ -21,7 +21,9 @@ export default function MarksSheet() {
 
           <p className="countText">Total Students {studentsData?.length}</p>
         </div>
-        <SheetTable />
+        <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
+          <SheetTable />
+        </div>
       </div>
 
       <DownloadExcelBar />
