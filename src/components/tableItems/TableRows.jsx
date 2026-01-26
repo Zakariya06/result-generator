@@ -3,7 +3,21 @@ import React from "react";
 const TableRows = (props) => {
   const { processedStudents, columns } = props;
 
-  const norm = (v) => String(v ?? "").trim().toLowerCase();
+  const norm = (v) =>
+    String(v ?? "")
+      .trim()
+      .toLowerCase();
+
+  const possibleKeysForColumn = (label) => {
+    const l = norm(label);
+
+    if (l.endsWith("- ospe") || l.includes(" - ospe")) {
+      const base = l.replace(/\s*-\s*ospe\s*$/, "");
+      return [l, `${base} - ospe`, `${base}-ospe`, base];
+    }
+ 
+    return [l];
+  };
 
   return (
     <>
@@ -27,15 +41,20 @@ const TableRows = (props) => {
         </tr>
       ) : (
         processedStudents.map((student, index) => {
-          // ✅ build subjectSet correctly (supports subjects as strings OR objects)
+          // ✅ build subjectSet correctly (strings OR objects)
           const subjectSet = new Set(
             (Array.isArray(student?.subjects) ? student.subjects : [])
               .map((s) => {
                 if (typeof s === "string") return norm(s);
-                // try common keys if it's an object:
-                return norm(s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title);
+                return norm(
+                  s?.label ??
+                    s?.name ??
+                    s?.subject ??
+                    s?.subjectName ??
+                    s?.title,
+                );
               })
-              .filter(Boolean)
+              .filter(Boolean),
           );
 
           return (
@@ -53,7 +72,9 @@ const TableRows = (props) => {
               <td>{student.institute}</td>
 
               {columns.map((item, i) => {
-                const hasSubject = subjectSet.has(norm(item.label));
+                const keys = possibleKeysForColumn(item.label);
+                const hasSubject = keys.some((k) => subjectSet.has(k));
+
                 return (
                   <React.Fragment key={i}>
                     <td>{hasSubject ? "-" : "NA"}</td>

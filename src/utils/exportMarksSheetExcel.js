@@ -3,6 +3,7 @@ import { saveAs } from "file-saver";
 
 const normalize = (v) => String(v ?? "").trim();
 const upper = (v) => normalize(v).toUpperCase();
+const norm = (v) => String(v ?? "").trim().toLowerCase();
 
 const hasRA = (rollNumber) => upper(rollNumber).includes("RA");
 
@@ -10,6 +11,20 @@ const parseRollNumber = (value) => {
   if (!value) return null;
   const numeric = Number(String(value).replace(/[^0-9]/g, ""));
   return Number.isFinite(numeric) ? numeric : null;
+};
+
+// ✅ for a column label, return all possible keys to match in student.subjects (OSPE fix)
+const possibleKeysForColumn = (label) => {
+  const l = norm(label);
+
+  // "anatomy - ospe" variations
+  if (l.endsWith("- ospe") || l.includes(" - ospe")) {
+    const base = l.replace(/\s*-\s*ospe\s*$/, "");
+    return [l, `${base} - ospe`, `${base}-ospe`, base];
+  }
+
+  // normal subject
+  return [l];
 };
 
 // build columns like your UI
@@ -56,8 +71,7 @@ export async function exportMarksSheetXlsx({
   const columns = buildColumns(subjects);
   const processedStudents = processStudents(studentsData);
 
-  // Total columns:
-  // 7 fixed + (columns.length * 3)
+  // Total columns: 7 fixed + (columns.length * 3)
   const totalCols = 7 + columns.length * 3;
 
   const wb = new ExcelJS.Workbook();
@@ -111,15 +125,13 @@ export async function exportMarksSheetXlsx({
   countCell.alignment = { vertical: "middle", horizontal: "right" };
   ws.getRow(2).height = 18;
 
-  // Spacer row (optional)
+  // Spacer row
   ws.addRow([]);
   ws.mergeCells(3, 1, 3, totalCols);
 
   // =========================
-  // Header rows (2 rows like your table)
+  // Header rows
   // =========================
-  // Row 4 = main headers + subject group merged
-  // Row 5 = Mid/Final/Total
   ws.addRow([]); // row 4
   ws.addRow([]); // row 5
 
@@ -151,14 +163,12 @@ export async function exportMarksSheetXlsx({
     const groupStart = startCol;
     const groupEnd = startCol + 2;
 
-    // merge group header across 3 cols
     ws.mergeCells(headerRow1, groupStart, headerRow1, groupEnd);
     const groupCell = ws.getCell(headerRow1, groupStart);
     groupCell.value = normalize(col.label);
     groupCell.font = { bold: true };
     groupCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
 
-    // subheaders
     ws.getCell(headerRow2, groupStart).value = "Mid";
     ws.getCell(headerRow2, groupStart + 1).value = "Final";
     ws.getCell(headerRow2, groupStart + 2).value = "Total";
@@ -232,8 +242,30 @@ export async function exportMarksSheetXlsx({
     to: { row: headerRow2, column: totalCols },
   };
 
-  // Write file
+  // ✅ Write file buffer
   const buffer = await wb.xlsx.writeBuffer();
+
+  // ✅ Windows "Save As" picker (Chrome/Edge)
+  if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: fileName,
+      types: [
+        {
+          description: "Excel Workbook",
+          accept: {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+          },
+        },
+      ],
+    });
+
+    const writable = await handle.createWritable();
+    await writable.write(buffer);
+    await writable.close();
+    return;
+  }
+
+  // ✅ Fallback (Firefox/Safari): normal download
   const blob = new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
@@ -242,17 +274,13 @@ export async function exportMarksSheetXlsx({
 
 // build row values in the exact order of columns
 function buildRowValues(student, columns) {
-  // ✅ FIX: subjects can be strings OR objects, build set properly
+  // ✅ subjects can be strings OR objects, build set properly
   const subjectSet = Array.isArray(student?.subjects)
     ? new Set(
         student.subjects
           .map((s) => {
-            if (typeof s === "string") return String(s).trim().toLowerCase();
-            return String(
-              s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
-            )
-              .trim()
-              .toLowerCase();
+            if (typeof s === "string") return norm(s);
+            return norm(s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "");
           })
           .filter(Boolean)
       )
@@ -270,8 +298,10 @@ function buildRowValues(student, columns) {
 
   const marksCells = [];
   columns.forEach((col) => {
-    const label = String(col.label).trim().toLowerCase();
-    const val = subjectSet ? (subjectSet.has(label) ? "-" : "NA") : "-";
+    const keys = possibleKeysForColumn(col.label);
+    const hasSubject = subjectSet ? keys.some((k) => subjectSet.has(k)) : false;
+
+    const val = subjectSet ? (hasSubject ? "-" : "NA") : "-";
     marksCells.push(val, val, val); // Mid/Final/Total
   });
 

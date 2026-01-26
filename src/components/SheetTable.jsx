@@ -40,7 +40,7 @@ const SheetTable = () => {
 
     return sorted.map((student) => {
       const isRA = hasRA(student.rollNumber);
-      const institute = String(student?.institute || "").trim().toUpperCase(); // if "institue", change here
+      const institute = String(student?.institute || "").trim().toUpperCase();  
       const groupKey = `${institute}__${isRA ? "RA" : "NON_RA"}`;
 
       serial = previousGroupKey === groupKey ? serial + 1 : 1;
