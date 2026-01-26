@@ -21,14 +21,7 @@ export default function MarksSheet() {
 
           <p className="countText">Total Students {studentsData?.length}</p>
         </div>
-<<<<<<< HEAD:src/pages/SheetPage.jsx
         <SheetTable />
-=======
-
-        <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
-          <SheetTable />
-        </div>
->>>>>>> e031d34e8ddff1bb21355db1d95e02d04d692dbf:src/pages/AddedSubjects.jsx
       </div>
 
       <DownloadExcelBar />
