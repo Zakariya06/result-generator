@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import ExcelDropzone from "../components/ExcelDropzone";
 import {
@@ -8,6 +8,7 @@ import {
 } from "../utils/excelTransform";
 import { useSubject } from "../context/SubjectContext";
 import Modal from "react-bootstrap/Modal";
+import { Spinner } from "react-bootstrap";
 
 export default function UploadFiles() {
   const [file1Data, setFile1Data] = useState(null);
@@ -15,14 +16,19 @@ export default function UploadFiles() {
   const [show, setShow] = useState(false);
   const [activeDropzone, setActiveDropzone] = useState("ospelist");
 
+  const [isPending, startTransition] = useTransition();
+
   const { saveAllStudentData, studentsData, addData } = useSubject();
   const navigate = useNavigate();
 
-  // STEP 1 – Upload OSPE / Marks sheets (MULTIPLE)
+  /* ===============================
+     STEP 1 – Upload OSPE / Marks
+  =============================== */
   const handleMultipleFilesOspeSheetDataData = (allFilesData) => {
     const merged = allFilesData.flatMap(({ fileName, data }) =>
       transformExcelData(data, fileName),
     );
+
 
     setFile1Data(merged);
     saveAllStudentData(merged);
@@ -31,50 +37,64 @@ export default function UploadFiles() {
     alert("Upload successful. Now upload Re-Appear / Subject files");
   };
 
-  // STEP 2 – Upload Re-Appear / Subject lists (MULTIPLE)
+  /* ===============================
+     STEP 2 – Upload Re-Appear
+  =============================== */
   const handleReaAppearStudentData = (allFiles) => {
-    const mapped = transformStudentListFiles(allFiles);
-    setFile2Data(mapped);
+    startTransition(() => {
+      const mapped = transformStudentListFiles(allFiles);
+      setFile2Data(mapped);
 
-    if (file1Data) {
-      const merged = mergeFileData(file1Data, mapped);
+      
+    console.log("this is institiue data", mapped);
+
+      if (file1Data) {
+        const merged = mergeFileData(file1Data, mapped);
+        saveAllStudentData(merged);
+      }
+
       setShow(false);
-      saveAllStudentData(merged);
-    }
+    });
   };
 
-  // STEP 3 - ADD OSPE / MARK SHEETS (MULTIPLE)
+  /* ===============================
+     STEP 3 – ADD OSPE / Marks
+  =============================== */
   const handleAddMultipleFilesOspeSheetDataData = (addFiles) => {
     const merged = addFiles.flatMap(({ fileName, data }) =>
       transformExcelData(data, fileName),
     );
 
-    // ✅ spread arrays (no nested arrays)
     setFile1Data((prev) => [...(prev || []), ...merged]);
-
-    // ✅ dedupe + merge in context
     addData(merged);
 
     setShow(false);
     alert("Add successfully");
   };
 
-  // STEP 4 – ADD Re-Appear / Subject lists (MULTIPLE)
+  /* ===============================
+     STEP 4 – ADD Re-Appear
+  =============================== */
   const handleAddReaAppearStudentData = (addFiles) => {
-    const mapped = transformStudentListFiles(addFiles);
+    startTransition(() => {
+      const mapped = transformStudentListFiles(addFiles);
+      const mappedItems = Array.isArray(mapped) ? mapped : [mapped];
 
-    const mappedItems = Array.isArray(mapped) ? mapped : [mapped];
-    setFile2Data((prev) => [...(prev || []), ...mappedItems]);
+      setFile2Data((prev) => [...(prev || []), ...mappedItems]);
 
-    if (file1Data) {
-      const merged = mergeFileData(file1Data, mapped); 
-      addData(merged);
+      if (file1Data) {
+        const merged = mergeFileData(file1Data, mapped);
+        addData(merged);
+      }
 
       setShow(false);
       alert("Add successfully");
-    }
+    });
   };
 
+  /* ===============================
+     Navigation / Clear
+  =============================== */
   const handleNext = () => {
     if (!studentsData?.length) {
       alert("Please upload both Excel files");
@@ -90,7 +110,9 @@ export default function UploadFiles() {
     setActiveDropzone("ospelist");
   };
 
-  // Upload modal openers
+  /* ===============================
+     Modal Controls
+  =============================== */
   const handleUploadOspeStudentData = () => {
     setActiveDropzone("ospelist");
     setShow(true);
@@ -115,12 +137,18 @@ export default function UploadFiles() {
     <>
       <div className="buttonWrapper d-flex align-items-center gap-2">
         {!file1Data ? (
-          <button className="btn btn-primary" onClick={handleUploadOspeStudentData}>
+          <button
+            className="btn btn-primary"
+            onClick={handleUploadOspeStudentData}
+          >
             Upload Students Data
           </button>
         ) : (
           !file2Data && (
-            <button className="btn btn-danger" onClick={HandleReAppearStudentData}>
+            <button
+              className="btn btn-danger"
+              onClick={HandleReAppearStudentData}
+            >
               Upload Re Appear Data
             </button>
           )
@@ -128,10 +156,16 @@ export default function UploadFiles() {
 
         {file1Data && file2Data && (
           <>
-            <button className="btn btn-primary" onClick={handleAddUploadOspeStudentData}>
+            <button
+              className="btn btn-primary"
+              onClick={handleAddUploadOspeStudentData}
+            >
               Add More Students Data
             </button>
-            <button className="btn btn-danger" onClick={HandleAddReAppearStudentData}>
+            <button
+              className="btn btn-danger"
+              onClick={HandleAddReAppearStudentData}
+            >
               Add More Re Appear Data
             </button>
           </>
@@ -148,45 +182,46 @@ export default function UploadFiles() {
         <Modal.Header closeButton>
           <Modal.Title>Upload Your Excel Files Here</Modal.Title>
         </Modal.Header>
+
         <Modal.Body>
-          {activeDropzone === "ospelist" && (
-            <ExcelDropzone
-              label="Upload Student Details OSPE"
-              onData={handleMultipleFilesOspeSheetDataData}
-            />
-          )}
+          {isPending ? (
+            <div className="d-flex align-items-center justify-content-center py-5 px-3">
+              <Spinner variant="primary" animation="border" />
+              <span className="ms-2">Files Comparing...</span>
+            </div>
+          ) : (
+            <>
+              {activeDropzone === "ospelist" && (
+                <ExcelDropzone
+                  label="Upload Student Details OSPE"
+                  onData={handleMultipleFilesOspeSheetDataData}
+                />
+              )}
 
-          {activeDropzone === "studentlist" && (
-            <ExcelDropzone
-              label="Upload Re-Appear / Subject Details"
-              onData={handleReaAppearStudentData}
-            />
-          )}
+              {activeDropzone === "studentlist" && (
+                <ExcelDropzone
+                  label="Upload Re-Appear / Subject Details"
+                  onData={handleReaAppearStudentData}
+                />
+              )}
 
-          {activeDropzone === "addMoreOspelist" && (
-            <ExcelDropzone
-              label="Upload Student Details OSPE"
-              onData={handleAddMultipleFilesOspeSheetDataData}
-            />
-          )}
+              {activeDropzone === "addMoreOspelist" && (
+                <ExcelDropzone
+                  label="Upload Student Details OSPE"
+                  onData={handleAddMultipleFilesOspeSheetDataData}
+                />
+              )}
 
-          {activeDropzone === "addMoreStudenlist" && (
-            <ExcelDropzone
-              label="Upload Re-Appear / Subject Details"
-              onData={handleAddReaAppearStudentData}
-            />
+              {activeDropzone === "addMoreStudenlist" && (
+                <ExcelDropzone
+                  label="Upload Re-Appear / Subject Details"
+                  onData={handleAddReaAppearStudentData}
+                />
+              )}
+            </>
           )}
         </Modal.Body>
       </Modal>
-
-      {/* Optional Continue Button */}
-      {/* {file1Data && file2Data && (
-        <div className="buttonRow">
-          <button className="secondaryButton" onClick={handleNext}>
-            Continue
-          </button>
-        </div>
-      )} */}
     </>
   );
 }

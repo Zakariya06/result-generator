@@ -15,9 +15,11 @@ const TableRows = (props) => {
       const base = l.replace(/\s*-\s*ospe\s*$/, "");
       return [l, `${base} - ospe`, `${base}-ospe`, base];
     }
- 
+
     return [l];
   };
+
+  console.log("This is Final Students Data ====== \n", processedStudents);
 
   return (
     <>
@@ -29,6 +31,7 @@ const TableRows = (props) => {
           <td>Father Name</td>
           <td>REG-2024</td>
           <td>Discipline Name</td>
+          <td>Regular / Re-appear</td>
           <td>KMU IHS-Swat</td>
 
           {columns.map((item, i) => (
@@ -69,6 +72,7 @@ const TableRows = (props) => {
               <td>{student.fatherName}</td>
               <td>{student.registration}</td>
               <td>{student.Discipline}</td>
+              <td>{student.isRA ? "Re-appear" : "Regular"}</td>
               <td>{student.institute}</td>
 
               {columns.map((item, i) => {

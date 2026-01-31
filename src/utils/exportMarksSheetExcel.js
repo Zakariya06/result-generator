@@ -3,7 +3,10 @@ import { saveAs } from "file-saver";
 
 const normalize = (v) => String(v ?? "").trim();
 const upper = (v) => normalize(v).toUpperCase();
-const norm = (v) => String(v ?? "").trim().toLowerCase();
+const norm = (v) =>
+  String(v ?? "")
+    .trim()
+    .toLowerCase();
 
 const hasRA = (rollNumber) => upper(rollNumber).includes("RA");
 
@@ -31,7 +34,8 @@ const possibleKeysForColumn = (label) => {
 export const buildColumns = (subjects) =>
   (subjects || []).flatMap((s) => {
     const base = [{ label: s.subject, key: s.subject }];
-    if (s.ospe) base.push({ label: `${s.subject} - OSPE`, key: `${s.subject}-ospe` });
+    if (s.ospe)
+      base.push({ label: `${s.subject} - OSPE`, key: `${s.subject}-ospe` });
     return base;
   });
 
@@ -45,7 +49,9 @@ export const processStudents = (studentsData) => {
     if (aRoll !== null) return -1;
     if (bRoll !== null) return 1;
 
-    return String(a?.rollNumber || "").localeCompare(String(b?.rollNumber || ""));
+    return String(a?.rollNumber || "").localeCompare(
+      String(b?.rollNumber || ""),
+    );
   });
 
   let serial = 0;
@@ -71,8 +77,8 @@ export async function exportMarksSheetXlsx({
   const columns = buildColumns(subjects);
   const processedStudents = processStudents(studentsData);
 
-  // Total columns: 7 fixed + (columns.length * 3)
-  const totalCols = 7 + columns.length * 3;
+  // ✅ Total columns: 8 fixed + (columns.length * 3)
+  const totalCols = 8 + columns.length * 3;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "KMU Marks Sheet";
@@ -94,13 +100,14 @@ export async function exportMarksSheetXlsx({
     right: { style: "thin" },
   };
 
-  // Column widths
-  const baseWidths = [6, 18, 22, 22, 24, 16, 26]; // S#, Roll#, Name, Father, Reg, Discipline, Institute
-  for (let c = 1; c <= 7; c++) ws.getColumn(c).width = baseWidths[c - 1];
+  // ✅ Column widths (now 8 fixed columns)
+  const baseWidths = [6, 18, 22, 22, 24, 16, 18, 26];
+  // S#, Roll#, Name, Father, Reg, Discipline, Regular/Re-appear, Institute
+  for (let c = 1; c <= 8; c++) ws.getColumn(c).width = baseWidths[c - 1];
 
-  // each subject group 3 cols (Mid, Final, Total)
+  // ✅ each subject group 3 cols (Mid, Final, Total) starts at column 9
   for (let i = 0; i < columns.length * 3; i++) {
-    ws.getColumn(8 + i).width = 10;
+    ws.getColumn(9 + i).width = 10;
   }
 
   // =========================
@@ -138,6 +145,7 @@ export async function exportMarksSheetXlsx({
   const headerRow1 = 4;
   const headerRow2 = 5;
 
+  // ✅ Fixed headers updated to include Regular / Re-appear
   const fixedHeaders = [
     { text: "S#", col: 1 },
     { text: "Roll #", col: 2 },
@@ -145,7 +153,8 @@ export async function exportMarksSheetXlsx({
     { text: "Father’s Name", col: 4 },
     { text: "Registration", col: 5 },
     { text: "Discipline", col: 6 },
-    { text: "Institute", col: 7 },
+    { text: "Regular / Re-appear", col: 7 },
+    { text: "Institute", col: 8 },
   ];
 
   // Fixed headers merged vertically (rowSpan=2)
@@ -154,11 +163,15 @@ export async function exportMarksSheetXlsx({
     const cell = ws.getCell(headerRow1, h.col);
     cell.value = h.text;
     cell.font = { bold: true };
-    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: true,
+    };
   });
 
-  // Subject groups
-  let startCol = 8;
+  // ✅ Subject groups now start at column 9
+  let startCol = 9;
   columns.forEach((col) => {
     const groupStart = startCol;
     const groupEnd = startCol + 2;
@@ -167,7 +180,11 @@ export async function exportMarksSheetXlsx({
     const groupCell = ws.getCell(headerRow1, groupStart);
     groupCell.value = normalize(col.label);
     groupCell.font = { bold: true };
-    groupCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    groupCell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: true,
+    };
 
     ws.getCell(headerRow2, groupStart).value = "Mid";
     ws.getCell(headerRow2, groupStart + 1).value = "Final";
@@ -253,7 +270,8 @@ export async function exportMarksSheetXlsx({
         {
           description: "Excel Workbook",
           accept: {
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+              [".xlsx"],
           },
         },
       ],
@@ -280,9 +298,16 @@ function buildRowValues(student, columns) {
         student.subjects
           .map((s) => {
             if (typeof s === "string") return norm(s);
-            return norm(s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "");
+            return norm(
+              s?.label ??
+                s?.name ??
+                s?.subject ??
+                s?.subjectName ??
+                s?.title ??
+                "",
+            );
           })
-          .filter(Boolean)
+          .filter(Boolean),
       )
     : null;
 
@@ -293,6 +318,8 @@ function buildRowValues(student, columns) {
     student.fatherName ?? "",
     student.registration ?? "",
     student.Discipline ?? "",
+    // ✅ NEW column like UI
+    student.isRA ? "Re-appear" : "Regular",
     student.institute ?? "",
   ];
 
@@ -326,10 +353,18 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
 
   row.eachCell({ includeEmpty: true }, (cell) => {
     cell.border = borderAll;
-    cell.alignment = { vertical: "middle", horizontal: "center", wrapText: false };
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: false,
+    };
 
     // ✅ NA cells red (priority)
-    if (String(cell.value ?? "").trim().toUpperCase() === "NA") {
+    if (
+      String(cell.value ?? "")
+        .trim()
+        .toUpperCase() === "NA"
+    ) {
       cell.fill = naFill;
       return;
     }
@@ -341,8 +376,21 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
   });
 
   // Align some columns left for readability
-  ws.getCell(rowNumber, 3).alignment = { vertical: "middle", horizontal: "left" }; // Name
-  ws.getCell(rowNumber, 4).alignment = { vertical: "middle", horizontal: "left" }; // Father
-  ws.getCell(rowNumber, 5).alignment = { vertical: "middle", horizontal: "left" }; // Registration
-  ws.getCell(rowNumber, 7).alignment = { vertical: "middle", horizontal: "left" }; // Institute
+  ws.getCell(rowNumber, 3).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  }; // Name
+  ws.getCell(rowNumber, 4).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  }; // Father
+  ws.getCell(rowNumber, 5).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  }; // Registration
+  // ✅ Institute moved to col 8 (because col 7 is Regular/Re-appear)
+  ws.getCell(rowNumber, 8).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  }; // Institute
 }

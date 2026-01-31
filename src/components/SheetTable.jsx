@@ -61,6 +61,7 @@ const SheetTable = () => {
           <th rowSpan="2">Father’s Name</th>
           <th rowSpan="2">Registration</th>
           <th rowSpan="2">Discipline</th>
+          <th rowSpan="2">Regular / Re-appear</th>
           <th rowSpan="2">Institute</th>
 
           {columns.map((col) => (

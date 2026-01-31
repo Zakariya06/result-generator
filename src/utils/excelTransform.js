@@ -112,6 +112,9 @@ export const transformStudentListFiles = (allFilesData) => {
           case "institute":
             student.institute = value;
             break;
+          case "status":
+            student.status = value;
+            break;
           default:
             student[key] = value;
         }
@@ -127,21 +130,33 @@ export const transformStudentListFiles = (allFilesData) => {
   return students;
 };
 
+// mergeFileData
 export const mergeFileData = (file1Data, file2Data) => {
   const map = new Map();
- 
+
+  // Build a composite key from registration + name + fatherName
+  const makeKey = (s) => {
+    if (!s) return "";
+    return [
+      normalize(s.registration),
+      normalize(s.name),
+      normalize(s.fatherName),
+    ].join("|");
+  };
 
   file2Data.forEach((s) => {
-    if (s.registration) {
-      map.set(normalize(s.registration), s);
+    if (s.registration && s.name && s.fatherName) {
+      map.set(makeKey(s), s);
     }
   });
 
   return file1Data.map((student1) => {
-    const regKey = student1.registration
-      ? normalize(student1.registration)
-      : "";
-    const match = regKey ? map.get(regKey) : null;
+    if (!student1.registration || !student1.name || !student1.fatherName) {
+      return student1;
+    }
+
+    const key = makeKey(student1);
+    const match = map.get(key);
 
     if (!match) return student1;
 
