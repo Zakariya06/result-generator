@@ -87,7 +87,6 @@ const SheetTable = () => {
         <TableRows
           processedStudents={processedStudents}
           columns={columns} />
-
       </tbody>
     </table>
   );

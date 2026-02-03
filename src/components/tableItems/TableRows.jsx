@@ -67,7 +67,7 @@ const TableRows = (props) => {
               style={{ textWrap: "nowrap" }}
             >
               <td>{student.serial}</td>
-              <td>{student.rollNumber}</td>
+              <td>{student.rollNumber.split("(")[0]}</td>
               <td>{student.name}</td>
               <td>{student.fatherName}</td>
               <td>{student.registration}</td>

@@ -255,7 +255,7 @@ function buildRowValuesMidOnly(student, columns) {
 
   const base = [
     student.serial ?? "",
-    student.rollNumber ?? "",
+    student.rollNumber.split("(")[0] ?? "",
     student.name ?? "",
     student.fatherName ?? "",
     student.registration ?? "",
