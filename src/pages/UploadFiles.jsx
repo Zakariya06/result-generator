@@ -9,10 +9,14 @@ import {
 import { useSubject } from "../context/SubjectContext";
 import Modal from "react-bootstrap/Modal";
 import { Spinner } from "react-bootstrap";
+import { formatMidMarks, mergeMidMarksData } from "../utils/marksSheetFormater";
 
 export default function UploadFiles() {
   const [file1Data, setFile1Data] = useState(null);
   const [file2Data, setFile2Data] = useState(null);
+  const [midMarksData, setMidMarksData] = useState(null);
+
+
   const [show, setShow] = useState(false);
   const [activeDropzone, setActiveDropzone] = useState("ospelist");
 
@@ -45,8 +49,8 @@ export default function UploadFiles() {
       const mapped = transformStudentListFiles(allFiles);
       setFile2Data(mapped);
 
-      
-    console.log("this is institiue data", mapped);
+
+      console.log("this is institiue data", mapped);
 
       if (file1Data) {
         const merged = mergeFileData(file1Data, mapped);
@@ -133,49 +137,86 @@ export default function UploadFiles() {
     setShow(true);
   };
 
+  const handleUploadMidMarks = () => {
+    setActiveDropzone("midMarks");
+    setShow(true);
+  }
+
+
+
+
+  // STEP 5 – Upload Mid Marks
+  const handleUploadMidMarksData = (allFiles) => {
+    const formatted = formatMidMarks(allFiles.map(f => f.data));
+    setMidMarksData(formatted);
+    if (studentsData && formatted) {
+      const merged = mergeMidMarksData(studentsData, formatted);
+      saveAllStudentData(merged);
+    }
+    setShow(false);
+    alert("Upload successful. Now upload Final Marks. This will also update the students data");
+  }
+
   return (
     <>
-      <div className="buttonWrapper d-flex align-items-center gap-2">
-        {!file1Data ? (
-          <button
-            className="btn btn-primary"
-            onClick={handleUploadOspeStudentData}
-          >
-            Upload Students Data
-          </button>
-        ) : (
-          !file2Data && (
-            <button
-              className="btn btn-danger"
-              onClick={HandleReAppearStudentData}
-            >
-              Upload Re Appear Data
-            </button>
-          )
-        )}
-
-        {file1Data && file2Data && (
-          <>
+      <div className="tableHeader">
+        <div className="buttonWrapper d-flex align-items-center gap-2">
+          {!file1Data ? (
             <button
               className="btn btn-primary"
-              onClick={handleAddUploadOspeStudentData}
+              onClick={handleUploadOspeStudentData}
             >
-              Add More Students Data
+              Upload Students Data
             </button>
-            <button
-              className="btn btn-danger"
-              onClick={HandleAddReAppearStudentData}
-            >
-              Add More Re Appear Data
-            </button>
-          </>
-        )}
+          ) : (
+            !file2Data && (
+              <button
+                className="btn btn-danger"
+                onClick={HandleReAppearStudentData}
+              >
+                Upload Re Appear Data
+              </button>
+            )
+          )}
 
-        {file1Data && (
-          <button className="btn btn-warning" onClick={handleClear}>
-            Clear
-          </button>
-        )}
+          {file1Data && file2Data && (
+            <>
+              <button
+                className="btn btn-primary"
+                onClick={handleAddUploadOspeStudentData}
+              >
+                Add More Students Data
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={HandleAddReAppearStudentData}
+              >
+                Add More Re Appear Data
+              </button>
+            </>
+          )}
+
+          {file1Data && (
+            <button className="btn btn-warning" onClick={handleClear}>
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div>
+          {file1Data && file2Data && (
+            <button className="btn btn-success text-white" onClick={handleUploadMidMarks}>
+              Upload Mid Marks
+            </button>
+          )}
+        </div>
+
+
+
+
+        <p className="countText">Total Students{studentsData?.length}</p>
+
+
       </div>
 
       <Modal centered size="md" show={show} onHide={() => setShow(false)}>
@@ -216,6 +257,12 @@ export default function UploadFiles() {
                 <ExcelDropzone
                   label="Upload Re-Appear / Subject Details"
                   onData={handleAddReaAppearStudentData}
+                />
+              )}
+              {activeDropzone === "midMarks" && (
+                <ExcelDropzone
+                  label="Upload Mid Marks"
+                  onData={handleUploadMidMarksData}
                 />
               )}
             </>

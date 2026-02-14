@@ -1,7 +1,7 @@
 import DownloadExcelBar from "../components/DownloadExcelButton";
 import SheetTable from "../components/SheetTable";
 import { useSubject } from "../context/SubjectContext";
-import UploadFiles from "./UploadFiles";
+import TableHeader from "../components/TableHeader";
 
 export default function MarksSheet() {
   const { studentsData } = useSubject();
@@ -9,18 +9,7 @@ export default function MarksSheet() {
   return (
     <div style={{ padding: "2.5rem 1.5rem" }}>
       <div className="cardLarge" style={{ width: "100%", maxWidth: "100%" }}>
-        <div className="tableHeader">
-          <UploadFiles />
-
-          <h2 style={{ textAlign: "center" }}>
-            <span style={{ color: "a22840", display: "inline-block" }}>
-              Khyber Medical University
-            </span>{" "}
-            - Peshawar
-          </h2>
-
-          <p className="countText">Total Students {studentsData?.length}</p>
-        </div>
+        <TableHeader />
         <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto" }}>
           <SheetTable />
         </div>

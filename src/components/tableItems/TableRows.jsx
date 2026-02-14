@@ -51,10 +51,10 @@ const TableRows = (props) => {
                 if (typeof s === "string") return norm(s);
                 return norm(
                   s?.label ??
-                    s?.name ??
-                    s?.subject ??
-                    s?.subjectName ??
-                    s?.title,
+                  s?.name ??
+                  s?.subject ??
+                  s?.subjectName ??
+                  s?.title,
                 );
               })
               .filter(Boolean),
@@ -77,13 +77,39 @@ const TableRows = (props) => {
 
               {columns.map((item, i) => {
                 const keys = possibleKeysForColumn(item.label);
-                const hasSubject = keys.some((k) => subjectSet.has(k));
+
+                // find matching subject object
+                const matchedSubject = (student.subjects || []).find((s) => {
+                  const subjectName = norm(
+                    s?.label ??
+                    s?.name ??
+                    s?.subject ??
+                    s?.subjectName ??
+                    s?.title
+                  );
+
+                  return keys.includes(subjectName);
+                });
 
                 return (
                   <React.Fragment key={i}>
-                    <td>{hasSubject ? "-" : "NA"}</td>
-                    <td>{hasSubject ? "-" : "NA"}</td>
-                    <td>{hasSubject ? "-" : "NA"}</td>
+                    <td className="text-center">
+                      {matchedSubject
+                        ? matchedSubject.mid || "-"
+                        : <><span style={{ color: "red" }}>NA</span></>}
+                    </td>
+
+                    <td className="text-center">
+                      {matchedSubject
+                        ? matchedSubject.final || "-"
+                        : <><span style={{ color: "red" }}>NA</span></>}
+                    </td>
+
+                    <td className="text-center">
+                      {matchedSubject
+                        ? matchedSubject.total || "-"
+                        : <><span style={{ color: "red" }}>NA</span></>}
+                    </td>
                   </React.Fragment>
                 );
               })}
