@@ -1,12 +1,19 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import logo from "../assets/KMU_logo.jpg";
+import { useSubject } from "../context/SubjectContext";
 
 const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { clearAll } = useSubject();
 
   const handleLogout = () => {
     localStorage.removeItem("isAuth");
+    navigate("/");
+  };
+
+  const handleClear = () => {
+    clearAll();
     navigate("/");
   };
 
@@ -19,10 +26,20 @@ const Header = () => {
         {location.pathname !== "/" && (
           <button
             onClick={handleLogout}
-            className="primaryButton"
+            className="btn btn-danger"
             style={{ marginTop: "0" }}
           >
             logout
+          </button>
+        )}
+
+        {location.pathname === "/sheet" && (
+          <button
+            onClick={handleClear}
+            className="btn btn-primary"
+            style={{ marginTop: "0", marginLeft: "1rem" }}
+          >
+            Clear Data
           </button>
         )}
       </div>

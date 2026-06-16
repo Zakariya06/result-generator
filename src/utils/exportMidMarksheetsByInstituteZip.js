@@ -33,7 +33,8 @@ const possibleKeysForColumn = (label) => {
 export const buildColumns = (subjects) =>
   (subjects || []).flatMap((s) => {
     const base = [{ label: s.subject, key: s.subject }];
-    if (s.ospe) base.push({ label: `${s.subject} - OSPE`, key: `${s.subject}-ospe` });
+    if (s.ospe)
+      base.push({ label: `${s.subject} - OSPE`, key: `${s.subject}-ospe` });
     return base;
   });
 
@@ -47,7 +48,9 @@ export const processStudents = (studentsData) => {
     if (aRoll !== null) return -1;
     if (bRoll !== null) return 1;
 
-    return String(a?.rollNumber || "").localeCompare(String(b?.rollNumber || ""));
+    return String(a?.rollNumber || "").localeCompare(
+      String(b?.rollNumber || ""),
+    );
   });
 
   let serial = 0;
@@ -66,7 +69,11 @@ export const processStudents = (studentsData) => {
 };
 
 // ---------- NEW: EXPORT MID-ONLY SHEET (single workbook) ----------
-async function createMidOnlyWorkbook({ subjects, studentsData, sheetName = "Mid Marks" }) {
+async function createMidOnlyWorkbook({
+  subjects,
+  studentsData,
+  sheetName = "Mid Marks",
+}) {
   const columns = buildColumns(subjects);
   const processedStudents = processStudents(studentsData);
 
@@ -161,7 +168,11 @@ async function createMidOnlyWorkbook({ subjects, studentsData, sheetName = "Mid 
     const labelCell = ws.getCell(headerRow1, startCol);
     labelCell.value = normalize(col.label);
     labelCell.font = { bold: true };
-    labelCell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    labelCell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: true,
+    };
 
     const midCell = ws.getCell(headerRow2, startCol);
     midCell.value = "Mid";
@@ -234,28 +245,18 @@ async function createMidOnlyWorkbook({ subjects, studentsData, sheetName = "Mid 
 }
 
 // build row values in the exact order of columns (MID ONLY)
-function buildRowValuesMidOnly(student, columns) {
-  const subjectSet = Array.isArray(student?.subjects)
-    ? new Set(
-        student.subjects
-          .map((s) => {
-            if (typeof s === "string") return norm(s);
-            return norm(
-              s?.label ??
-                s?.name ??
-                s?.subject ??
-                s?.subjectName ??
-                s?.title ??
-                "",
-            );
-          })
-          .filter(Boolean),
-      )
-    : null;
+const computeTotal = (subj) => {
+  if (!subj) return "NA";
+  const mid = parseFloat(subj.mid);
+  const final = parseFloat(subj.final);
+  if (!isNaN(mid) && !isNaN(final)) return mid + final;
+  return subj.total ?? "-";
+};
 
+function buildRowValuesMidOnly(student, columns) {
   const base = [
     student.serial ?? "",
-    student.rollNumber.split("(")[0] ?? "",
+    String(student.rollNumber ?? "").split("(")[0],
     student.name ?? "",
     student.fatherName ?? "",
     student.registration ?? "",
@@ -265,13 +266,23 @@ function buildRowValuesMidOnly(student, columns) {
   ];
 
   const marksCells = [];
+
   columns.forEach((col) => {
     const keys = possibleKeysForColumn(col.label);
-    const hasSubject = subjectSet ? keys.some((k) => subjectSet.has(k)) : false;
 
-    // ✅ MID only
-    const val = subjectSet ? (hasSubject ? "-" : "NA") : "-";
-    marksCells.push(val);
+    // ── Find the actual subject object (same pattern as TableRows) ─────────
+    const matchedSubject = (
+      Array.isArray(student.subjects) ? student.subjects : []
+    ).find((s) => {
+      if (!s) return false;
+      const subjectName = norm(
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "",
+      );
+      return keys.includes(subjectName);
+    });
+
+    // Mid-only sheet: one cell per subject
+    marksCells.push(matchedSubject ? (matchedSubject.mid ?? "-") : "NA");
   });
 
   return [...base, ...marksCells];
@@ -301,7 +312,11 @@ function styleDataRow(ws, rowNumber, isRA, borderAll) {
       wrapText: false,
     };
 
-    if (String(cell.value ?? "").trim().toUpperCase() === "NA") {
+    if (
+      String(cell.value ?? "")
+        .trim()
+        .toUpperCase() === "NA"
+    ) {
       cell.fill = naFill;
       return;
     }
@@ -311,10 +326,22 @@ function styleDataRow(ws, rowNumber, isRA, borderAll) {
     }
   });
 
-  ws.getCell(rowNumber, 3).alignment = { vertical: "middle", horizontal: "left" };
-  ws.getCell(rowNumber, 4).alignment = { vertical: "middle", horizontal: "left" };
-  ws.getCell(rowNumber, 5).alignment = { vertical: "middle", horizontal: "left" };
-  ws.getCell(rowNumber, 8).alignment = { vertical: "middle", horizontal: "left" };
+  ws.getCell(rowNumber, 3).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  };
+  ws.getCell(rowNumber, 4).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  };
+  ws.getCell(rowNumber, 5).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  };
+  ws.getCell(rowNumber, 8).alignment = {
+    vertical: "middle",
+    horizontal: "left",
+  };
 }
 
 // ---------- NEW: ZIP EXPORT (one file per institute) ----------
@@ -338,7 +365,8 @@ export async function exportMidMarksheetsByInstituteZip({
   for (const st of list) {
     const rawInst = normalize(st?.institute || "Unknown Institute");
     const key = norm(rawInst);
-    if (!groups.has(key)) groups.set(key, { instituteLabel: rawInst, students: [] });
+    if (!groups.has(key))
+      groups.set(key, { instituteLabel: rawInst, students: [] });
     groups.get(key).students.push(st);
   }
 
@@ -363,7 +391,9 @@ export async function exportMidMarksheetsByInstituteZip({
   if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
     const handle = await window.showSaveFilePicker({
       suggestedName: zipName,
-      types: [{ description: "ZIP Archive", accept: { "application/zip": [".zip"] } }],
+      types: [
+        { description: "ZIP Archive", accept: { "application/zip": [".zip"] } },
+      ],
     });
     const writable = await handle.createWritable();
     await writable.write(zipBlob);

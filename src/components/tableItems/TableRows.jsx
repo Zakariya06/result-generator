@@ -19,8 +19,6 @@ const TableRows = (props) => {
     return [l];
   };
 
-  console.log("This is Final Students Data ====== \n", processedStudents);
-
   return (
     <>
       {processedStudents.length === 0 ? (
@@ -44,30 +42,19 @@ const TableRows = (props) => {
         </tr>
       ) : (
         processedStudents.map((student, index) => {
-          // ✅ build subjectSet correctly (strings OR objects)
-          const subjectSet = new Set(
-            (Array.isArray(student?.subjects) ? student.subjects : [])
-              .map((s) => {
-                if (typeof s === "string") return norm(s);
-                return norm(
-                  s?.label ??
-                  s?.name ??
-                  s?.subject ??
-                  s?.subjectName ??
-                  s?.title,
-                );
-              })
-              .filter(Boolean),
-          );
+          if (!student || typeof student !== "object") return null;
 
           return (
             <tr
-              key={student.rollNumber + index}
+              key={String(student.rollNumber ?? index) + "_" + index}
               className={student.isRA ? "ra-row" : ""}
               style={{ textWrap: "nowrap" }}
             >
               <td>{student.serial}</td>
-              <td>{student.rollNumber.split("(")[0]}</td>
+
+              {/* Safe split — won't crash if rollNumber is undefined */}
+              <td>{String(student.rollNumber ?? "").split("(")[0]}</td>
+
               <td>{student.name}</td>
               <td>{student.fatherName}</td>
               <td>{student.registration}</td>
@@ -78,37 +65,51 @@ const TableRows = (props) => {
               {columns.map((item, i) => {
                 const keys = possibleKeysForColumn(item.label);
 
-                // find matching subject object
                 const matchedSubject = (student.subjects || []).find((s) => {
+                  if (!s) return false;
                   const subjectName = norm(
                     s?.label ??
-                    s?.name ??
-                    s?.subject ??
-                    s?.subjectName ??
-                    s?.title
+                      s?.name ??
+                      s?.subject ??
+                      s?.subjectName ??
+                      s?.title,
                   );
-
                   return keys.includes(subjectName);
                 });
+
+                // ── Compute total = mid + final if both are numeric ──────────────
+                const computeTotal = (subj) => {
+                  if (!subj) return "-";
+                  const mid = parseFloat(subj.mid);
+                  const final = parseFloat(subj.final);
+                  if (!isNaN(mid) && !isNaN(final)) return mid + final;
+                  return subj.total ?? "-";
+                };
 
                 return (
                   <React.Fragment key={i}>
                     <td className="text-center">
-                      {matchedSubject
-                        ? matchedSubject.mid || "-"
-                        : <><span style={{ color: "red" }}>NA</span></>}
+                      {matchedSubject ? (
+                        (matchedSubject.mid ?? "-")
+                      ) : (
+                        <span style={{ color: "red" }}>NA</span>
+                      )}
                     </td>
 
                     <td className="text-center">
-                      {matchedSubject
-                        ? matchedSubject.final || "-"
-                        : <><span style={{ color: "red" }}>NA</span></>}
+                      {matchedSubject ? (
+                        (matchedSubject.final ?? "-")
+                      ) : (
+                        <span style={{ color: "red" }}>NA</span>
+                      )}
                     </td>
 
                     <td className="text-center">
-                      {matchedSubject
-                        ? matchedSubject.total || "-"
-                        : <><span style={{ color: "red" }}>NA</span></>}
+                      {matchedSubject ? (
+                        computeTotal(matchedSubject)
+                      ) : (
+                        <span style={{ color: "red" }}>NA</span>
+                      )}
                     </td>
                   </React.Fragment>
                 );

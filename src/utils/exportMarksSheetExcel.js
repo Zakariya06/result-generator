@@ -16,21 +16,17 @@ const parseRollNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
-// ✅ for a column label, return all possible keys to match in student.subjects (OSPE fix)
+// Same logic as TableRows — returns all possible normalised keys for a column label
 const possibleKeysForColumn = (label) => {
   const l = norm(label);
-
-  // "anatomy - ospe" variations
   if (l.endsWith("- ospe") || l.includes(" - ospe")) {
     const base = l.replace(/\s*-\s*ospe\s*$/, "");
     return [l, `${base} - ospe`, `${base}-ospe`, base];
   }
-
-  // normal subject
   return [l];
 };
 
-// build columns like your UI
+// Same as SheetTable
 export const buildColumns = (subjects) =>
   (subjects || []).flatMap((s) => {
     const base = [{ label: s.subject, key: s.subject }];
@@ -39,16 +35,14 @@ export const buildColumns = (subjects) =>
     return base;
   });
 
-// same processedStudents logic you use
+// Same sort + serial logic as SheetTable / processStudents
 export const processStudents = (studentsData) => {
   const sorted = [...(studentsData || [])].sort((a, b) => {
     const aRoll = parseRollNumber(a?.rollNumber);
     const bRoll = parseRollNumber(b?.rollNumber);
-
     if (aRoll !== null && bRoll !== null) return aRoll - bRoll;
     if (aRoll !== null) return -1;
     if (bRoll !== null) return 1;
-
     return String(a?.rollNumber || "").localeCompare(
       String(b?.rollNumber || ""),
     );
@@ -59,12 +53,12 @@ export const processStudents = (studentsData) => {
 
   return sorted.map((student) => {
     const isRA = hasRA(student.rollNumber);
-    const institute = upper(student?.institute); // if your field is "institue", change here
+    const institute = String(student?.institute || "")
+      .trim()
+      .toUpperCase();
     const groupKey = `${institute}__${isRA ? "RA" : "NON_RA"}`;
-
     serial = previousGroupKey === groupKey ? serial + 1 : 1;
     previousGroupKey = groupKey;
-
     return { ...student, serial, isRA };
   });
 };
@@ -77,22 +71,15 @@ export async function exportMarksSheetXlsx({
   const columns = buildColumns(subjects);
   const processedStudents = processStudents(studentsData);
 
-  // ✅ Total columns: 8 fixed + (columns.length * 3)
   const totalCols = 8 + columns.length * 3;
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "KMU Marks Sheet";
+
   const ws = wb.addWorksheet("Marks Sheet", {
-    views: [
-      {
-        state: "frozen",
-        xSplit: 0,
-        ySplit: 4, // freeze title+count+2 header rows
-      },
-    ],
+    views: [{ state: "frozen", xSplit: 0, ySplit: 5 }],
   });
 
-  // Helpers for styling
   const borderAll = {
     top: { style: "thin" },
     left: { style: "thin" },
@@ -100,19 +87,12 @@ export async function exportMarksSheetXlsx({
     right: { style: "thin" },
   };
 
-  // ✅ Column widths (now 8 fixed columns)
+  // ── Column widths ────────────────────────────────────────────────────────
   const baseWidths = [6, 18, 22, 22, 24, 16, 18, 26];
-  // S#, Roll#, Name, Father, Reg, Discipline, Regular/Re-appear, Institute
   for (let c = 1; c <= 8; c++) ws.getColumn(c).width = baseWidths[c - 1];
+  for (let i = 0; i < columns.length * 3; i++) ws.getColumn(9 + i).width = 10;
 
-  // ✅ each subject group 3 cols (Mid, Final, Total) starts at column 9
-  for (let i = 0; i < columns.length * 3; i++) {
-    ws.getColumn(9 + i).width = 10;
-  }
-
-  // =========================
-  // Title row (merged)
-  // =========================
+  // ── Row 1: Title ─────────────────────────────────────────────────────────
   ws.addRow([]);
   ws.mergeCells(1, 1, 1, totalCols);
   const titleCell = ws.getCell(1, 1);
@@ -121,9 +101,7 @@ export async function exportMarksSheetXlsx({
   titleCell.alignment = { vertical: "middle", horizontal: "center" };
   ws.getRow(1).height = 26;
 
-  // =========================
-  // Count row (merged)
-  // =========================
+  // ── Row 2: Count ─────────────────────────────────────────────────────────
   ws.addRow([]);
   ws.mergeCells(2, 1, 2, totalCols);
   const countCell = ws.getCell(2, 1);
@@ -132,32 +110,28 @@ export async function exportMarksSheetXlsx({
   countCell.alignment = { vertical: "middle", horizontal: "right" };
   ws.getRow(2).height = 18;
 
-  // Spacer row
+  // ── Row 3: Spacer ────────────────────────────────────────────────────────
   ws.addRow([]);
   ws.mergeCells(3, 1, 3, totalCols);
 
-  // =========================
-  // Header rows
-  // =========================
+  // ── Rows 4–5: Headers ────────────────────────────────────────────────────
   ws.addRow([]); // row 4
   ws.addRow([]); // row 5
 
   const headerRow1 = 4;
   const headerRow2 = 5;
 
-  // ✅ Fixed headers updated to include Regular / Re-appear
   const fixedHeaders = [
     { text: "S#", col: 1 },
     { text: "Roll #", col: 2 },
     { text: "Name", col: 3 },
-    { text: "Father’s Name", col: 4 },
+    { text: "Father's Name", col: 4 },
     { text: "Registration", col: 5 },
     { text: "Discipline", col: 6 },
     { text: "Regular / Re-appear", col: 7 },
     { text: "Institute", col: 8 },
   ];
 
-  // Fixed headers merged vertically (rowSpan=2)
   fixedHeaders.forEach((h) => {
     ws.mergeCells(headerRow1, h.col, headerRow2, h.col);
     const cell = ws.getCell(headerRow1, h.col);
@@ -170,14 +144,11 @@ export async function exportMarksSheetXlsx({
     };
   });
 
-  // ✅ Subject groups now start at column 9
   let startCol = 9;
   columns.forEach((col) => {
-    const groupStart = startCol;
     const groupEnd = startCol + 2;
-
-    ws.mergeCells(headerRow1, groupStart, headerRow1, groupEnd);
-    const groupCell = ws.getCell(headerRow1, groupStart);
+    ws.mergeCells(headerRow1, startCol, headerRow1, groupEnd);
+    const groupCell = ws.getCell(headerRow1, startCol);
     groupCell.value = normalize(col.label);
     groupCell.font = { bold: true };
     groupCell.alignment = {
@@ -186,24 +157,20 @@ export async function exportMarksSheetXlsx({
       wrapText: true,
     };
 
-    ws.getCell(headerRow2, groupStart).value = "Mid";
-    ws.getCell(headerRow2, groupStart + 1).value = "Final";
-    ws.getCell(headerRow2, groupStart + 2).value = "Total";
-
-    for (let c = groupStart; c <= groupEnd; c++) {
-      const cell = ws.getCell(headerRow2, c);
+    ["Mid", "Final", "Total"].forEach((label, offset) => {
+      const cell = ws.getCell(headerRow2, startCol + offset);
+      cell.value = label;
       cell.font = { bold: true };
       cell.alignment = { vertical: "middle", horizontal: "center" };
-    }
+    });
 
     startCol += 3;
   });
 
-  // Style header background + borders
   const headerFill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "FFF2F2F2" }, // light gray
+    fgColor: { argb: "FFF2F2F2" },
   };
 
   [headerRow1, headerRow2].forEach((r) => {
@@ -215,126 +182,130 @@ export async function exportMarksSheetXlsx({
     });
   });
 
-  // Borders for title/count rows
   [1, 2].forEach((r) => {
-    const row = ws.getRow(r);
-    row.eachCell({ includeEmpty: true }, (cell) => {
+    ws.getRow(r).eachCell({ includeEmpty: true }, (cell) => {
       cell.border = borderAll;
     });
   });
 
-  // =========================
-  // Data rows
-  // =========================
+  // ── Data rows ────────────────────────────────────────────────────────────
   const firstDataRow = 6;
 
-  if (processedStudents.length === 0) {
-    const demo = {
-      serial: 1,
-      rollNumber: "KMU-001",
-      name: "Student Name",
-      fatherName: "Father Name",
-      registration: "REG-2024",
-      Discipline: "Discipline Name",
-      institute: "KMU IHS-Swat",
-      subjects: [],
-      isRA: false,
-    };
+  const students =
+    processedStudents.length > 0
+      ? processedStudents
+      : [
+          {
+            serial: 1,
+            rollNumber: "KMU-001",
+            name: "Student Name",
+            fatherName: "Father Name",
+            registration: "REG-2024",
+            Discipline: "Discipline Name",
+            institute: "KMU IHS-Swat",
+            subjects: [],
+            isRA: false,
+          },
+        ];
 
-    const rowValues = buildRowValues(demo, columns);
+  students.forEach((student, idx) => {
+    const excelRowIndex = firstDataRow + idx;
+    const rowValues = buildRowValues(student, columns);
     ws.addRow(rowValues);
-    styleDataRow(ws, firstDataRow, totalCols, demo.isRA, borderAll);
-  } else {
-    processedStudents.forEach((student, idx) => {
-      const excelRowIndex = firstDataRow + idx;
-      const rowValues = buildRowValues(student, columns);
-      ws.addRow(rowValues);
-      styleDataRow(ws, excelRowIndex, totalCols, student.isRA, borderAll);
-    });
-  }
+    styleDataRow(ws, excelRowIndex, totalCols, student.isRA, borderAll);
+  });
 
-  // Auto filter (optional)
   ws.autoFilter = {
     from: { row: headerRow1, column: 1 },
     to: { row: headerRow2, column: totalCols },
   };
 
-  // ✅ Write file buffer
+  // ── Export ───────────────────────────────────────────────────────────────
   const buffer = await wb.xlsx.writeBuffer();
 
-  // ✅ Windows "Save As" picker (Chrome/Edge)
   if (typeof window !== "undefined" && "showSaveFilePicker" in window) {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: fileName,
-      types: [
-        {
-          description: "Excel Workbook",
-          accept: {
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-              [".xlsx"],
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [
+          {
+            description: "Excel Workbook",
+            accept: {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+                [".xlsx"],
+            },
           },
-        },
-      ],
-    });
-
-    const writable = await handle.createWritable();
-    await writable.write(buffer);
-    await writable.close();
-    return;
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(buffer);
+      await writable.close();
+      return;
+    } catch (e) {
+      // User cancelled the picker — fall through to saveAs
+      if (e.name === "AbortError") return;
+    }
   }
 
-  // ✅ Fallback (Firefox/Safari): normal download
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  saveAs(blob, fileName);
+  saveAs(
+    new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    fileName,
+  );
 }
 
-// build row values in the exact order of columns
-function buildRowValues(student, columns) {
-  // ✅ subjects can be strings OR objects, build set properly
-  const subjectSet = Array.isArray(student?.subjects)
-    ? new Set(
-        student.subjects
-          .map((s) => {
-            if (typeof s === "string") return norm(s);
-            return norm(
-              s?.label ??
-                s?.name ??
-                s?.subject ??
-                s?.subjectName ??
-                s?.title ??
-                "",
-            );
-          })
-          .filter(Boolean),
-      )
-    : null;
+// ── buildRowValues ────────────────────────────────────────────────────────────
+// ── Compute total = mid + final if both numeric, else fall back ───────────────
+const computeTotal = (subj) => {
+  if (!subj) return "NA";
+  const mid = parseFloat(subj.mid);
+  const final = parseFloat(subj.final);
+  if (!isNaN(mid) && !isNaN(final)) return mid + final;
+  return subj.total ?? "-";
+};
 
+function buildRowValues(student, columns) {
   const base = [
     student.serial ?? "",
-    student.rollNumber.split("(")[0] ?? "",
+    String(student.rollNumber ?? "").split("(")[0],
     student.name ?? "",
     student.fatherName ?? "",
     student.registration ?? "",
     student.Discipline ?? "",
-    // ✅ NEW column like UI
     student.isRA ? "Re-appear" : "Regular",
     student.institute ?? "",
   ];
 
   const marksCells = [];
+
   columns.forEach((col) => {
     const keys = possibleKeysForColumn(col.label);
-    const hasSubject = subjectSet ? keys.some((k) => subjectSet.has(k)) : false;
 
-    const val = subjectSet ? (hasSubject ? "-" : "NA") : "-";
-    marksCells.push(val, val, val); // Mid/Final/Total
+    const matchedSubject = (
+      Array.isArray(student.subjects) ? student.subjects : []
+    ).find((s) => {
+      if (!s) return false;
+      const subjectName = norm(
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "",
+      );
+      return keys.includes(subjectName);
+    });
+
+    if (!matchedSubject) {
+      marksCells.push("NA", "NA", "NA");
+    } else {
+      const mid = matchedSubject.mid ?? "-";
+      const final = matchedSubject.final ?? "-";
+      const total = computeTotal(matchedSubject); // ← computed here
+      marksCells.push(mid, final, total);
+    }
   });
 
   return [...base, ...marksCells];
 }
 
+// ── styleDataRow ──────────────────────────────────────────────────────────────
 function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
   const row = ws.getRow(rowNumber);
   row.height = 18;
@@ -342,13 +313,12 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
   const raFill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "FFFFF4CC" }, // soft yellow
+    fgColor: { argb: "FFFFF4CC" },
   };
-
   const naFill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "FFFFC7CE" }, // light red
+    fgColor: { argb: "FFFFC7CE" },
   };
 
   row.eachCell({ includeEmpty: true }, (cell) => {
@@ -359,38 +329,24 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
       wrapText: false,
     };
 
-    // ✅ NA cells red (priority)
     if (
       String(cell.value ?? "")
         .trim()
         .toUpperCase() === "NA"
     ) {
       cell.fill = naFill;
+      cell.font = { color: { argb: "FF9B0000" } };
       return;
     }
 
-    // ✅ RA row highlight (only if not NA)
-    if (isRA) {
-      cell.fill = raFill;
-    }
+    if (isRA) cell.fill = raFill;
   });
 
-  // Align some columns left for readability
-  ws.getCell(rowNumber, 3).alignment = {
-    vertical: "middle",
-    horizontal: "left",
-  }; // Name
-  ws.getCell(rowNumber, 4).alignment = {
-    vertical: "middle",
-    horizontal: "left",
-  }; // Father
-  ws.getCell(rowNumber, 5).alignment = {
-    vertical: "middle",
-    horizontal: "left",
-  }; // Registration
-  // ✅ Institute moved to col 8 (because col 7 is Regular/Re-appear)
-  ws.getCell(rowNumber, 8).alignment = {
-    vertical: "middle",
-    horizontal: "left",
-  }; // Institute
+  // Left-align text-heavy columns
+  [3, 4, 5, 8].forEach((col) => {
+    ws.getCell(rowNumber, col).alignment = {
+      vertical: "middle",
+      horizontal: "left",
+    };
+  });
 }
