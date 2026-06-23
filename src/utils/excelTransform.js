@@ -1,6 +1,6 @@
 /* ================================
    Helpers
-================================ */ 
+================================ */
 
 const normalize = (value = "") => value.toString().trim().toLowerCase();
 
@@ -172,5 +172,41 @@ export const mergeFileData = (file1Data, file2Data) => {
         ...new Set([...(student1.subjects || []), ...(match.subjects || [])]),
       ],
     };
+  });
+};
+
+export const ensureSubjectEntries = (studentsData, subjectsConfig) => {
+  if (!subjectsConfig?.length) return studentsData;
+
+  const norm = (v) =>
+    String(v ?? "")
+      .trim()
+      .toLowerCase();
+
+  return (studentsData || []).map((student) => {
+    const existing = Array.isArray(student.subjects) ? student.subjects : [];
+    const existingNames = new Set(
+      existing.map((s) => norm(s?.subject ?? s?.label ?? s?.name ?? "")),
+    );
+
+    const toAdd = [];
+    subjectsConfig.forEach((cfg) => {
+      const baseName = String(cfg.subject || "").trim();
+      if (!baseName) return;
+
+      if (!existingNames.has(norm(baseName))) {
+        toAdd.push({ subject: baseName, mid: "", final: "" });
+      }
+
+      if (cfg.ospe) {
+        const ospeName = `${baseName} - OSPE`;
+        if (!existingNames.has(norm(ospeName))) {
+          toAdd.push({ subject: ospeName, mid: "", final: "" });
+        }
+      }
+    });
+
+    if (!toAdd.length) return student;
+    return { ...student, subjects: [...existing, ...toAdd] };
   });
 };

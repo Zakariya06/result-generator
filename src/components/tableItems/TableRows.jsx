@@ -12,8 +12,9 @@ const TableRows = (props) => {
     const l = norm(label);
 
     if (l.endsWith("- ospe") || l.includes(" - ospe")) {
-      const base = l.replace(/\s*-\s*ospe\s*$/, "");
-      return [l, `${base} - ospe`, `${base}-ospe`, base];
+      const base = l.replace(/\s*-\s*ospe\s*$/, "").trim();
+      // ✅ Only OSPE-variant keys — no fallback to the base subject name
+      return [l, `${base} - ospe`, `${base}-ospe`];
     }
 
     return [l];

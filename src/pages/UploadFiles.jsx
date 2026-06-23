@@ -5,6 +5,7 @@ import {
   transformExcelData,
   transformStudentListFiles,
   mergeFileData,
+  ensureSubjectEntries,
 } from "../utils/excelTransform";
 import { useSubject } from "../context/SubjectContext";
 import Modal from "react-bootstrap/Modal";
@@ -61,7 +62,8 @@ export default function UploadFiles() {
       setFile2Data(mapped);
       const base = file1Data || studentsData;
       if (base?.length) {
-        const merged = mergeFileData(base, mapped);
+        let merged = mergeFileData(base, mapped);
+        merged = ensureSubjectEntries(merged, subjects);
         saveAllStudentData(merged);
       }
       setUploadStep(2);
@@ -104,10 +106,11 @@ export default function UploadFiles() {
      STEP 5 – Upload Mid Marks
   =============================== */
   const handleUploadMidMarksData = (allFiles) => {
+    const base = ensureSubjectEntries(studentsData, subjects);
     const formatted = formatMidMarks(allFiles.map((f) => f.data));
     setMidMarksData(formatted);
-    if (studentsData?.length && formatted?.length) {
-      const merged = mergeMidMarksData(studentsData, formatted);
+    if (base?.length && formatted?.length) {
+      const merged = mergeMidMarksData(base, formatted);
       saveAllStudentData(merged);
     }
     setShow(false);
@@ -117,53 +120,69 @@ export default function UploadFiles() {
   /* ===============================
      STEP 6 – Upload Final Marks 
   =============================== */
-  const handleUploadFinalMarksData = (selectedSubject, allFiles) => {
+  const handleUploadFinalMarksData = (
+    selectedSubject,
+    allFiles,
+    { mode, isOspe } = {},
+  ) => {
     if (!selectedSubject) {
       alert("Please select a subject before uploading final marks.");
       return;
     }
+    if (!studentsData?.length) {
+      alert("Please upload student data first.");
+      return;
+    }
 
-    // allFiles is [{ fileName, data: rawRows[] }]
-    const formatted = formatFinalMarks(
-      allFiles.map((f) => f.data),
-      selectedSubject,
-    );
+    let formatted;
+    let targetSubjectLabel = selectedSubject;
+
+    if (mode === "physical") {
+      formatted = formatFinalMarksPhysical(
+        allFiles.map((f) => f.data),
+        selectedSubject,
+        { isOspe },
+      );
+      if (isOspe) targetSubjectLabel = `${selectedSubject} - OSPE`;
+    } else {
+      formatted = isOspe
+        ? formatFinalMarksOnlineOspe(
+            allFiles.map((f) => f.data),
+            selectedSubject,
+          )
+        : formatFinalMarks(
+            allFiles.map((f) => f.data),
+            selectedSubject,
+          );
+      if (isOspe) targetSubjectLabel = `${selectedSubject} - OSPE`;
+    }
 
     if (!formatted.length) {
       alert("No valid student data found in the uploaded file.");
       return;
     }
 
-    if (!studentsData?.length) {
-      alert("Please upload student data first.");
-      return;
-    }
-
     const { merged, noMatchCount, subjectNotFoundCount } = mergeFinalMarksData(
       studentsData,
       formatted,
-      selectedSubject,
+      targetSubjectLabel,
     );
 
-    // ── Warn the user if the subject didn't match ─────────────────────────
     if (
       subjectNotFoundCount > 0 &&
       subjectNotFoundCount === studentsData.length
     ) {
       alert(
-        `Subject mismatch: "${selectedSubject}" was not found in any student's subject list. ` +
-          `Please make sure you selected the correct subject. No marks were updated.`,
+        `Subject mismatch: "${targetSubjectLabel}" was not found in any student's subject list. ` +
+          `No marks were updated.`,
       );
-      return; // abort — don't save bad data
+      return;
     }
-
     if (subjectNotFoundCount > 0) {
       alert(
-        `Warning: "${selectedSubject}" was not found for ${subjectNotFoundCount} student(s). ` +
-          `Their final marks were left unchanged.`,
+        `Warning: "${targetSubjectLabel}" not found for ${subjectNotFoundCount} student(s).`,
       );
     }
-
     if (noMatchCount > 0) {
       console.warn(
         `${noMatchCount} students had no matching row in the uploaded file.`,
@@ -172,7 +191,9 @@ export default function UploadFiles() {
 
     saveAllStudentData(merged);
     setShow(false);
-    alert(`Final marks for "${selectedSubject}" uploaded successfully.`);
+    alert(
+      `${isOspe ? "OSPE" : "Final"} marks (${mode}) for "${selectedSubject}" uploaded successfully.`,
+    );
   };
 
   /* ===============================

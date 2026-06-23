@@ -1,4 +1,4 @@
-import { useState } from "react"; 
+import { useState } from "react";
 import ExcelDropzone from "../ExcelDropzone";
 
 export default function FinalMarksUploader({
@@ -6,53 +6,94 @@ export default function FinalMarksUploader({
   studentsData,
   onUpload,
 }) {
+  const [mode, setMode] = useState("online"); // "online" | "physical"
   const [selectedSubject, setSelectedSubject] = useState("");
+  const [uploadOspe, setUploadOspe] = useState(false); // is this an OSPE-only upload?
 
-  // Build flat list of all subject + ospe column labels (same shape as SheetTable columns)
-  const allColumns = subjects.flatMap((s) => {
-    const cols = [s.subject];
-    if (s.ospe) cols.push(`${s.subject} - OSPE`);
-    return cols;
-  });
-
-  // Detect which subjects already have at least one student with a non-empty final mark
   const norm = (v) =>
     String(v ?? "")
       .trim()
       .toLowerCase();
 
-  const uploadedSubjects = new Set();
+  // Plain subject names only (OSPE handled via the toggle, not as a separate dropdown row)
+  const baseSubjects = subjects.map((s) => s.subject);
+
+  const finalIsSet = (val) =>
+    val !== undefined && val !== null && val !== "" && val !== "-";
+
+  // Track which (subject) and which (subject - OSPE) already have final marks
+  const uploadedPlain = new Set();
+  const uploadedOspe = new Set();
   (studentsData || []).forEach((student) => {
     (student.subjects || []).forEach((subj) => {
       const name = norm(subj?.subject ?? subj?.label ?? subj?.name ?? "");
-      const final = subj?.final;
-      if (
-        final !== undefined &&
-        final !== null &&
-        final !== "" &&
-        final !== "-"
-      ) {
-        uploadedSubjects.add(name);
-      }
+      if (!finalIsSet(subj?.final)) return;
+      if (name.endsWith("- ospe"))
+        uploadedOspe.add(name.replace(/\s*-\s*ospe$/, ""));
+      else uploadedPlain.add(name);
     });
   });
 
-  const pendingColumns = allColumns.filter(
-    (col) => !uploadedSubjects.has(norm(col)),
+  const subjectHasOspe = (name) =>
+    subjects.find((s) => norm(s.subject) === norm(name))?.ospe;
+
+  const isDisabled = (name) =>
+    uploadOspe ? uploadedOspe.has(norm(name)) : uploadedPlain.has(norm(name));
+
+  const pendingSubjects = baseSubjects.filter(
+    (name) => !uploadOspe || subjectHasOspe(name), // hide OSPE option for subjects without OSPE
   );
 
   const handleFileData = (allFiles) => {
     if (!selectedSubject) return;
-    onUpload(selectedSubject, allFiles);
+    onUpload(selectedSubject, allFiles, { mode, isOspe: uploadOspe });
     setSelectedSubject("");
   };
 
   return (
     <div className="final-marks-uploader">
-      {/* ── Subject selector ─────────────────────────────────────── */}
+      {/* ── Online / Physical toggle ───────────────────────────────── */}
+      <div className="fmu-select-wrap">
+        <label className="fmu-label">Marks Source</label>
+        <div className="d-flex gap-2">
+          <button
+            type="button"
+            className={`btn btn-sm ${mode === "online" ? "btn-primary" : "btn-outline-secondary"}`}
+            onClick={() => setMode("online")}
+          >
+            Online
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${mode === "physical" ? "btn-primary" : "btn-outline-secondary"}`}
+            onClick={() => setMode("physical")}
+          >
+            Physical
+          </button>
+        </div>
+      </div>
+
+      {/* ── OSPE toggle ─────────────────────────────────────────────── */}
+      <div className="form-check">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id="ospeToggle"
+          checked={uploadOspe}
+          onChange={(e) => {
+            setUploadOspe(e.target.checked);
+            setSelectedSubject("");
+          }}
+        />
+        <label className="form-check-label" htmlFor="ospeToggle">
+          This is an OSPE marks upload (separate sheet)
+        </label>
+      </div>
+
+      {/* ── Subject selector ───────────────────────────────────────── */}
       <div className="fmu-select-wrap">
         <label className="fmu-label" htmlFor="subjectSelect">
-          Select Subject / Paper
+          Select Subject / Paper{uploadOspe ? " (OSPE)" : ""}
         </label>
 
         <div className="fmu-select-box">
@@ -63,38 +104,29 @@ export default function FinalMarksUploader({
             onChange={(e) => setSelectedSubject(e.target.value)}
           >
             <option value="">— Choose a subject —</option>
-
-            {pendingColumns.length === 0 ? (
-              <option disabled>✅ All subjects uploaded</option>
-            ) : (
-              pendingColumns.map((col) => (
-                <option key={col} value={col}>
-                  {col}
-                </option>
-              ))
-            )}
+            {pendingSubjects.map((name) => (
+              <option key={name} value={name} disabled={isDisabled(name)}>
+                {name} {isDisabled(name) ? "✅ Uploaded" : ""}
+              </option>
+            ))}
           </select>
           <span className="fmu-chevron">▾</span>
         </div>
-
-        {pendingColumns.length > 0 && (
-          <p className="fmu-hint">
-            {pendingColumns.length} subject
-            {pendingColumns.length !== 1 ? "s" : ""} pending final marks
-          </p>
-        )}
       </div>
 
-      {/* ── Dropzone — only shown after a subject is selected ────── */}
-      {selectedSubject && (
+      {/* ── Dropzone ────────────────────────────────────────────────── */}
+      {selectedSubject && !isDisabled(selectedSubject) && (
         <div className="fmu-dropzone-wrap">
           <div className="fmu-selected-badge">
             <span className="fmu-badge-dot" />
-            Uploading final marks for: <strong>{selectedSubject}</strong>
+            Uploading {mode} {uploadOspe ? "OSPE" : "final"} marks for:{" "}
+            <strong>{selectedSubject}</strong>
           </div>
 
           <ExcelDropzone
-            label={`Upload Final Marks — ${selectedSubject}`}
+            label={`Upload ${mode === "online" ? "Online" : "Physical"} ${
+              uploadOspe ? "OSPE" : "Final"
+            } Marks — ${selectedSubject}`}
             onData={handleFileData}
           />
         </div>
