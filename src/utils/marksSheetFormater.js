@@ -196,25 +196,67 @@ export function formatFinalMarksPhysical(
     if (!Array.isArray(sheet) || !sheet.length) return;
 
     sheet.forEach((row) => {
-      const rollNo = norm(
-        row["Roll No"] ??
-          row["Roll #"] ??
-          row["RollNumber"] ??
-          row["roll number"] ??
-          "",
-      );
-      const name = norm(
-        row["Name"] ?? row["Student Name"] ?? row["name"] ?? "",
-      );
-      const fatherName = norm(row["Father Name"] ?? row["Father's Name"] ?? "");
-      const marks =
-        row["Marks"] ??
-        row["Obtained"] ??
-        row["Total Marks"] ??
-        row["OSPE Marks"] ??
-        null;
+      // Normalize all keys to lower-case for easier matching
+      const rowKeys = Object.keys(row);
+      const lowerKeys = rowKeys.map((k) => k.toLowerCase());
 
-      if (!rollNo && !name) return;
+      // ---- Find Roll Number column ----
+      let rollKey = null;
+      // 1. exact match: "Roll Number"
+      if (rowKeys.includes("Roll Number")) {
+        rollKey = "Roll Number";
+      } else {
+        // 2. fallback: look for key containing "roll" and "number" or just "roll"
+        const idx = lowerKeys.findIndex(
+          (k) =>
+            k.includes("roll") &&
+            (k.includes("number") || k.includes("no") || k.includes("#")),
+        );
+        if (idx !== -1) rollKey = rowKeys[idx];
+      }
+
+      // ---- Find Total Score column ----
+      let totalKey = null;
+      // 1. exact match: "Total Score"
+      if (rowKeys.includes("Total Score")) {
+        totalKey = "Total Score";
+      } else {
+        // 2. fallback: look for key containing "total" and "score" or just "total"
+        const idx = lowerKeys.findIndex(
+          (k) =>
+            k.includes("total") &&
+            (k.includes("score") ||
+              k.includes("marks") ||
+              k.includes("obtained")),
+        );
+        if (idx !== -1) totalKey = rowKeys[idx];
+      }
+
+      // If we can't find both, skip this row
+      if (!rollKey || !totalKey) {
+        // Optionally log a warning for debugging
+        // console.warn("Skipping row: missing roll or total column", row);
+        return;
+      }
+
+      const rollNo = norm(row[rollKey]);
+      // We may also have a "Name" column, but it's not guaranteed. We'll try to get it.
+      const nameKey = rowKeys.find(
+        (k) => /name/i.test(k) && !/father/i.test(k),
+      );
+      const name = nameKey ? norm(row[nameKey]) : "";
+      const fatherKey = rowKeys.find((k) => /father/i.test(k));
+      const fatherName = fatherKey ? norm(row[fatherKey]) : "";
+
+      // Skip rows without a valid roll number (non-empty, digits allowed)
+      if (!rollNo) return;
+
+      // Extract total score – it might be a number or string; keep as is
+      const totalScore = row[totalKey];
+      const finalMark =
+        totalScore !== undefined && totalScore !== null && totalScore !== ""
+          ? totalScore
+          : null;
 
       allStudents.push({
         rollNo,
@@ -223,7 +265,7 @@ export function formatFinalMarksPhysical(
         subjectName: isOspe
           ? `${String(selectedSubject).trim()} - OSPE`
           : String(selectedSubject).trim(),
-        finalMark: marks !== null && marks !== "" ? marks : null,
+        finalMark,
       });
     });
   });
