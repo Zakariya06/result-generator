@@ -15,6 +15,8 @@ import {
   mergeMidMarksData,
   formatFinalMarks,
   mergeFinalMarksData,
+  formatFinalMarksOnlineOspe,
+  formatFinalMarksPhysical,
 } from "../utils/marksSheetFormater";
 import FinalMarksUploader from "../components/upload/FinalMarksUploader";
 
@@ -31,7 +33,6 @@ export default function UploadFiles() {
     useSubject();
   const navigate = useNavigate();
 
-  // ── Step tracking persisted in localStorage so buttons survive reload ──
   const uploadStep = Number(localStorage.getItem("uploadStep") || "0");
   const setUploadStep = (step) =>
     localStorage.setItem("uploadStep", String(step));
@@ -39,9 +40,6 @@ export default function UploadFiles() {
   const hasStudentsData = studentsData?.length > 0 || uploadStep >= 1;
   const hasReAppearData = uploadStep >= 2;
 
-  /* ===============================
-     STEP 1 – Upload OSPE / Marks
-  =============================== */
   const handleMultipleFilesOspeSheetDataData = (allFilesData) => {
     const merged = allFilesData.flatMap(({ fileName, data }) =>
       transformExcelData(data, fileName),
@@ -53,9 +51,6 @@ export default function UploadFiles() {
     alert("Upload successful. Now upload Re-Appear / Subject files");
   };
 
-  /* ===============================
-     STEP 2 – Upload Re-Appear
-  =============================== */
   const handleReaAppearStudentData = (allFiles) => {
     startTransition(() => {
       const mapped = transformStudentListFiles(allFiles);
@@ -71,9 +66,6 @@ export default function UploadFiles() {
     });
   };
 
-  /* ===============================
-     STEP 3 – ADD OSPE / Marks
-  =============================== */
   const handleAddMultipleFilesOspeSheetDataData = (addFiles) => {
     const merged = addFiles.flatMap(({ fileName, data }) =>
       transformExcelData(data, fileName),
@@ -84,9 +76,6 @@ export default function UploadFiles() {
     alert("Add successfully");
   };
 
-  /* ===============================
-     STEP 4 – ADD Re-Appear
-  =============================== */
   const handleAddReaAppearStudentData = (addFiles) => {
     startTransition(() => {
       const mapped = transformStudentListFiles(addFiles);
@@ -102,9 +91,6 @@ export default function UploadFiles() {
     });
   };
 
-  /* ===============================
-     STEP 5 – Upload Mid Marks
-  =============================== */
   const handleUploadMidMarksData = (allFiles) => {
     const base = ensureSubjectEntries(studentsData, subjects);
     const formatted = formatMidMarks(allFiles.map((f) => f.data));
@@ -117,9 +103,6 @@ export default function UploadFiles() {
     alert("Mid marks uploaded successfully.");
   };
 
-  /* ===============================
-     STEP 6 – Upload Final Marks 
-  =============================== */
   const handleUploadFinalMarksData = (
     selectedSubject,
     allFiles,
@@ -196,9 +179,6 @@ export default function UploadFiles() {
     );
   };
 
-  /* ===============================
-     Navigation / Clear
-  =============================== */
   const handleNext = () => {
     if (!studentsData?.length) {
       alert("Please upload both Excel files");
@@ -217,9 +197,6 @@ export default function UploadFiles() {
     setActiveDropzone("ospelist");
   };
 
-  /* ===============================
-     Modal Controls
-  =============================== */
   const handleUploadOspeStudentData = () => {
     setActiveDropzone("ospelist");
     setShow(true);

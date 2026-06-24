@@ -179,98 +179,6 @@ export function formatFinalMarks(filesData, selectedSubject) {
   return allStudents;
 }
 
-export function mergeFinalMarksData(baseData, uploadedData, selectedSubject) {
-  const norm = (v) =>
-    String(v ?? "")
-      .trim()
-      .toLowerCase();
-
-  const normSubject = (v) => norm(v).replace(/\s+/g, " ");
-
-  const targetSubject = normSubject(selectedSubject);
-
-  // ── Build lookup maps from uploaded data ──────────────────────────────
-  const byRollNo = new Map(); // digits-only roll → uploaded row
-  const byName = new Map(); // normalised full-name → uploaded row (fallback)
-
-  uploadedData.forEach((s) => {
-    const roll = norm(s.rollNo).replace(/\D/g, "");
-    if (roll) byRollNo.set(roll, s);
-
-    const name = norm(s.name);
-    if (name) byName.set(name, s);
-  });
-
-  // ── Helper: find uploaded row for a base student ──────────────────────
-  const findUploaded = (student) => {
-    const roll = norm(student.rollNumber ?? "").replace(/\D/g, "");
-    if (roll && byRollNo.has(roll)) return byRollNo.get(roll);
-
-    const reg = norm(student.registration ?? "").replace(/\D/g, "");
-    if (reg && byRollNo.has(reg)) return byRollNo.get(reg);
-
-    const name = norm(student.name ?? "");
-    if (name && byName.has(name)) return byName.get(name);
-
-    return null;
-  };
-
-  let noMatchCount = 0; // students with no uploaded data row
-  let subjectNotFoundCount = 0; // students where subject wasn't in their list
-
-  const merged = baseData.map((student) => {
-    const uploaded = findUploaded(student);
-
-    if (!uploaded) {
-      noMatchCount++;
-      return student; // no uploaded row — leave unchanged
-    }
-
-    // Check if this student has the target subject in their subjects list
-    const subjects = student.subjects || [];
-    const subjectIndex = subjects.findIndex((subj) => {
-      const subjectName = normSubject(
-        subj?.subject ??
-          subj?.label ??
-          subj?.name ??
-          subj?.subjectName ??
-          subj?.title ??
-          "",
-      );
-      // Exact match first, then prefix/contains match
-      return (
-        subjectName === targetSubject ||
-        subjectName.startsWith(targetSubject) ||
-        targetSubject.startsWith(subjectName)
-      );
-    });
-
-    if (subjectIndex === -1) {
-      subjectNotFoundCount++;
-      return student; // subject not in this student's list — leave unchanged
-    }
-
-    // ✅ Only update `final` for the matched subject
-    const updatedSubjects = subjects.map((subj, idx) => {
-      if (idx !== subjectIndex) return subj;
-      return {
-        ...subj,
-        final:
-          uploaded.finalMark !== null && uploaded.finalMark !== undefined
-            ? uploaded.finalMark
-            : subj.final,
-      };
-    });
-
-    return {
-      ...student,
-      subjects: updatedSubjects,
-    };
-  });
-
-  return { merged, noMatchCount, subjectNotFoundCount };
-}
-
 export function formatFinalMarksPhysical(
   filesData,
   selectedSubject,
@@ -323,9 +231,199 @@ export function formatFinalMarksPhysical(
   return allStudents;
 }
 
+// ── OSPE final marks (online sheets, e.g. KMU HIS Swat export) ──────────
 export function formatFinalMarksOnlineOspe(filesData, selectedSubject) {
-  return formatFinalMarks(
-    filesData,
-    `${String(selectedSubject).trim()} - OSPE`,
-  );
+  if (!selectedSubject || !String(selectedSubject).trim()) {
+    console.warn("formatFinalMarksOnlineOspe: no subject selected");
+    return [];
+  }
+
+  const norm = (v) => String(v ?? "").trim();
+  const allStudents = [];
+
+  filesData.forEach((sheet) => {
+    if (!Array.isArray(sheet) || !sheet.length) return;
+
+    // ── Find the header row dynamically (don't assume a fixed index) ──
+    const headerRowIndex = sheet.findIndex((row) => {
+      const vals = Object.values(row).map((v) => String(v ?? "").toLowerCase());
+      const hasRoll = vals.some((v) => /roll/.test(v));
+      const hasName = vals.some((v) => /name/.test(v));
+      const hasTotal = vals.some((v) => /total/.test(v));
+      return hasRoll && hasName && hasTotal;
+    });
+
+    if (headerRowIndex === -1) {
+      console.warn(
+        "formatFinalMarksOnlineOspe: header row not found in sheet, skipping",
+      );
+      return;
+    }
+
+    const headerRow = sheet[headerRowIndex];
+    const headerEntries = Object.entries(headerRow); // [key, label]
+
+    const findKey = (matcher) => {
+      const entry = headerEntries.find(([, label]) =>
+        matcher(String(label ?? "").toLowerCase()),
+      );
+      return entry ? entry[0] : null;
+    };
+
+    const rollKey = findKey((l) => /roll/.test(l));
+    const nameKey = findKey((l) => /name/.test(l) && !/father/.test(l));
+    const fatherKey = findKey((l) => /father/.test(l));
+    const regKey = findKey((l) => /registration/.test(l));
+    // Prefer a column explicitly called "total marks"; fall back to anything with "total"
+    const totalKey =
+      findKey((l) => /total.*marks/.test(l)) || findKey((l) => /total/.test(l));
+
+    if (!rollKey && !nameKey) return; // can't identify students in this sheet
+    if (!totalKey) {
+      console.warn(
+        "formatFinalMarksOnlineOspe: total marks column not found, skipping sheet",
+      );
+      return;
+    }
+
+    const dataRows = sheet.slice(headerRowIndex + 1);
+
+    dataRows.forEach((row) => {
+      const rollNo = norm(rollKey ? row[rollKey] : "");
+      const name = norm(nameKey ? row[nameKey] : "");
+      const fatherName = norm(fatherKey ? row[fatherKey] : "");
+      const registration = norm(regKey ? row[regKey] : "");
+      const totalRaw = totalKey ? row[totalKey] : null;
+
+      if (!rollNo && !name) return; // skip blank/footer rows
+
+      allStudents.push({
+        rollNo,
+        name,
+        fatherName,
+        registration,
+        subjectName: `${String(selectedSubject).trim()} - OSPE`,
+        finalMark:
+          totalRaw !== undefined && totalRaw !== null && totalRaw !== ""
+            ? totalRaw
+            : null,
+      });
+    });
+  });
+
+  return allStudents;
+}
+
+// ── Generic merge for final marks (handles BOTH plain and OSPE targets) ──
+export function mergeFinalMarksData(baseData, uploadedData, selectedSubject) {
+  const norm = (v) =>
+    String(v ?? "")
+      .trim()
+      .toLowerCase();
+
+  const normSubject = (v) => norm(v).replace(/\s+/g, " ");
+  const targetSubject = normSubject(selectedSubject);
+  const isOspeTarget = /-\s*ospe\s*$/i.test(targetSubject);
+
+  // ── Build lookup maps from uploaded data ──────────────────────────────
+  const byRollNo = new Map(); // digits-only roll → uploaded row
+  const byRegistration = new Map(); // digits-only registration → uploaded row
+  const byNameFather = new Map(); // "name|fatherName" → uploaded row
+  const byName = new Map(); // normalised full-name → uploaded row (last fallback)
+
+  uploadedData.forEach((s) => {
+    const roll = norm(s.rollNo).replace(/\D/g, "");
+    if (roll) byRollNo.set(roll, s);
+
+    const reg = norm(s.registration).replace(/\D/g, "");
+    if (reg) byRegistration.set(reg, s);
+
+    const name = norm(s.name);
+    const father = norm(s.fatherName);
+    if (name && father) byNameFather.set(`${name}|${father}`, s);
+    if (name) byName.set(name, s);
+  });
+
+  // ── Helper: find uploaded row for a base student ──────────────────────
+  const findUploaded = (student) => {
+    const roll = norm(student.rollNumber ?? "").replace(/\D/g, "");
+    if (roll && byRollNo.has(roll)) return byRollNo.get(roll);
+
+    const reg = norm(student.registration ?? "").replace(/\D/g, "");
+    if (reg && byRegistration.has(reg)) return byRegistration.get(reg);
+
+    const name = norm(student.name ?? "");
+    const father = norm(student.fatherName ?? "");
+    if (name && father && byNameFather.has(`${name}|${father}`)) {
+      return byNameFather.get(`${name}|${father}`);
+    }
+
+    if (name && byName.has(name)) return byName.get(name);
+
+    return null;
+  };
+
+  let noMatchCount = 0; // students with no uploaded data row
+  let subjectNotFoundCount = 0; // students where subject wasn't in their list
+
+  const merged = baseData.map((student) => {
+    const uploaded = findUploaded(student);
+
+    if (!uploaded) {
+      noMatchCount++;
+      return student; // no uploaded row — leave unchanged
+    }
+
+    // Check if this student has the target subject in their subjects list
+    const subjects = student.subjects || [];
+    const subjectIndex = subjects.findIndex((subj) => {
+      const subjectName = normSubject(
+        subj?.subject ??
+          subj?.label ??
+          subj?.name ??
+          subj?.subjectName ??
+          subj?.title ??
+          "",
+      );
+      if (!subjectName) return false;
+
+      const subjectIsOspe = /-\s*ospe\s*$/i.test(subjectName);
+
+      // 🚫 CRITICAL FIX: never cross the OSPE <-> non-OSPE boundary.
+      // This is what was causing OSPE uploads to overwrite the plain subject's final.
+      if (isOspeTarget !== subjectIsOspe) return false;
+
+      // Exact match first, then prefix/contains match (now safe — both sides
+      // are guaranteed to be on the same OSPE/non-OSPE side already)
+      return (
+        subjectName === targetSubject ||
+        subjectName.startsWith(targetSubject) ||
+        targetSubject.startsWith(subjectName)
+      );
+    });
+
+    if (subjectIndex === -1) {
+      subjectNotFoundCount++;
+      return student; // subject not in this student's list — leave unchanged
+    }
+
+    // ✅ Only update `final` for the matched subject
+    const updatedSubjects = subjects.map((subj, idx) => {
+      if (idx !== subjectIndex) return subj;
+      return {
+        ...subj,
+        final:
+          uploaded.finalMark !== null && uploaded.finalMark !== undefined
+            ? uploaded.finalMark
+            : subj.final,
+      };
+    });
+
+    return {
+      ...student,
+      subjects: updatedSubjects,
+    };
+  });
+
+  return { merged, noMatchCount, subjectNotFoundCount };
 }
