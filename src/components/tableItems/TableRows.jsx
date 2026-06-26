@@ -87,31 +87,45 @@ const TableRows = (props) => {
                   return subj.total ?? "-";
                 };
 
+                // 🚫 Subject genuinely doesn't apply to this student
+                // (e.g. a re-appear student who isn't re-appearing in it) → red NA.
+                if (!matchedSubject) {
+                  return (
+                    <React.Fragment key={i}>
+                      <td className="text-center">
+                        <span style={{ color: "red" }}>NA</span>
+                      </td>
+                      <td className="text-center">
+                        <span style={{ color: "red" }}>NA</span>
+                      </td>
+                      <td className="text-center">
+                        <span style={{ color: "red" }}>NA</span>
+                      </td>
+                    </React.Fragment>
+                  );
+                }
+
+                // ✅ Subject applies to this student — show marks if present,
+                // otherwise a plain "-" (not yet graded), never the red NA.
                 return (
                   <React.Fragment key={i}>
                     <td className="text-center">
-                      {matchedSubject ? (
-                        (matchedSubject.mid ?? "-")
-                      ) : (
-                        <span style={{ color: "red" }}>NA</span>
-                      )}
+                      {matchedSubject.mid !== "" &&
+                      matchedSubject.mid !== null &&
+                      matchedSubject.mid !== undefined
+                        ? matchedSubject.mid
+                        : "-"}
                     </td>
 
                     <td className="text-center">
-                      {matchedSubject ? (
-                        (matchedSubject.final ?? "-")
-                      ) : (
-                        <span style={{ color: "red" }}>NA</span>
-                      )}
+                      {matchedSubject.final !== "" &&
+                      matchedSubject.final !== null &&
+                      matchedSubject.final !== undefined
+                        ? matchedSubject.final
+                        : "-"}
                     </td>
 
-                    <td className="text-center">
-                      {matchedSubject ? (
-                        computeTotal(matchedSubject)
-                      ) : (
-                        <span style={{ color: "red" }}>NA</span>
-                      )}
-                    </td>
+                    <td className="text-center">{computeTotal(matchedSubject)}</td>
                   </React.Fragment>
                 );
               })}

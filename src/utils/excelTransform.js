@@ -4,6 +4,12 @@
 
 const normalize = (value = "") => value.toString().trim().toLowerCase();
 
+// Same RA detection used in SheetTable — kept in one place so both files agree.
+const isReAppearRoll = (rollNumber) =>
+  String(rollNumber || "")
+    .toUpperCase()
+    .includes("RA");
+
 export const transformExcelData = (rawData, fileName) => {
   if (!rawData || rawData.length < 4) return [];
 
@@ -184,6 +190,13 @@ export const ensureSubjectEntries = (studentsData, subjectsConfig) => {
       .toLowerCase();
 
   return (studentsData || []).map((student) => {
+    // 🚫 Re-appear students only carry the subjects from their actual
+    // re-appear file. Backfilling the FULL subject list onto them would
+    // make every subject "applicable" with empty marks — which hides the
+    // real "this subject doesn't apply to this RA student" case and shows
+    // a blank/"-" instead of the correct red "NA" in the table.
+    if (isReAppearRoll(student.rollNumber)) return student;
+
     const existing = Array.isArray(student.subjects) ? student.subjects : [];
     const existingNames = new Set(
       existing.map((s) => norm(s?.subject ?? s?.label ?? s?.name ?? "")),

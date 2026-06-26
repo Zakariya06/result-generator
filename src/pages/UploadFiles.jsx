@@ -29,8 +29,13 @@ export default function UploadFiles() {
   const [activeDropzone, setActiveDropzone] = useState("ospelist");
   const [isPending, startTransition] = useTransition();
 
-  const { saveAllStudentData, studentsData, addData, clearAllStudents, subjects } =
-    useSubject();
+  const {
+    saveAllStudentData,
+    studentsData,
+    addData,
+    clearAllStudents,
+    subjects,
+  } = useSubject();
   const navigate = useNavigate();
 
   const uploadStep = Number(localStorage.getItem("uploadStep") || "0");
@@ -167,6 +172,9 @@ export default function UploadFiles() {
       );
     }
     if (noMatchCount > 0) {
+      alert(
+        `Warning: ${noMatchCount} student(s) in the uploaded file did not match any existing student records.`,
+      );
       console.warn(
         `${noMatchCount} students had no matching row in the uploaded file.`,
       );
