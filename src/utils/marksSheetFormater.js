@@ -16,9 +16,11 @@ export function formatMidMarks(filesData) {
       if (String(type).trim().toLowerCase() === "mid") {
         const subjectName = String(subjectNames[idx] || "").trim();
 
-        // 🚫 Skip OSPE columns entirely — handled by the dedicated OSPE uploader
-        if (!subjectName || /-\s*ospe\s*$/i.test(subjectName)) return;
+        if (!subjectName) return;
 
+        // ✅ OSPE mid columns are now included too — matching is exact-name
+        // based (see mergeMidMarksData), so there's no risk of cross-contamination
+        // with the base subject's marks anymore.
         midColumns.push({ key: keys[idx], subjectName });
       }
     });
@@ -62,7 +64,6 @@ export function mergeMidMarksData(baseData, uploadedData) {
     String(v ?? "")
       .trim()
       .toLowerCase();
-  const isOspeName = (name) => /-\s*ospe\s*$/i.test(name);
 
   const byRollNo = new Map();
   const byRegistration = new Map();
@@ -108,11 +109,10 @@ export function mergeMidMarksData(baseData, uploadedData) {
 
       if (!subjectName) return subj;
 
-      // 🚫 Hard stop: this uploader never writes OSPE mid marks
-      if (isOspeName(subjectName)) return subj;
-
-      // ✅ Exact match only — no more startsWith loose matching,
-      // which was the source of OSPE/base subject cross-contamination.
+      // ✅ Exact match only — works for both plain subjects and
+      // "<Subject> - OSPE" entries, since uploadedMidMap keys are the exact
+      // normalized subject names straight from the sheet's header row. No
+      // cross-contamination risk because the keys are distinct strings.
       const midValue = uploadedMidMap.get(subjectName);
 
       if (midValue === undefined) return subj;

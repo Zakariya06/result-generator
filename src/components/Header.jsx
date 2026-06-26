@@ -39,7 +39,7 @@ const Header = () => {
             className="btn btn-primary"
             style={{ marginTop: "0", marginLeft: "1rem" }}
           >
-            Clear Data
+            Clear All
           </button>
         )}
       </div>

@@ -29,7 +29,7 @@ export default function UploadFiles() {
   const [activeDropzone, setActiveDropzone] = useState("ospelist");
   const [isPending, startTransition] = useTransition();
 
-  const { saveAllStudentData, studentsData, addData, clearAll, subjects } =
+  const { saveAllStudentData, studentsData, addData, clearAllStudents, subjects } =
     useSubject();
   const navigate = useNavigate();
 
@@ -188,7 +188,7 @@ export default function UploadFiles() {
   };
 
   const handleClear = async () => {
-    await clearAll();
+    await clearAllStudents();
     setFile1Data(null);
     setFile2Data(null);
     setMidMarksData(null);
