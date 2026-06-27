@@ -7,8 +7,8 @@ export default function CreateResult() {
   const [showCs, setShowCs] = useState(false);
 
   return (
-    <div className="pageCenter">
-      <div className="cardLarge" style={{ maxWidth: "600px", width: "100%" }}>
+    <div className="pageCenter" style={{padding: '1rem 0'}}>
+      <div className="cardLarge" style={{ maxWidth: "700px", width: "100%" }}>
         <h2 className="text-center">Creating Result Info</h2>
 
         {!showCs ? (

@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSubject } from "../context/SubjectContext";
 
-const norm = (v) => String(v || "").trim().toLowerCase();
-
 export default function CsSection() {
   const [count, setCount] = useState("");
   const [subjects, setSubjects] = useState([]);
@@ -16,7 +14,9 @@ export default function CsSection() {
     setSubjects(
       Array.from({ length: value }, () => ({
         subject: "",
-        ospe: null, // 👈 important for validation
+        ospe: null,
+        maxMid: "",
+        maxFinal: "",
       })),
     );
   };
@@ -28,9 +28,12 @@ export default function CsSection() {
   };
 
   const handleGenerate = () => {
-    // ✅ validation
     const hasEmptyField = subjects.some(
-      (s) => s.subject.trim() === "" || s.ospe === null,
+      (s) =>
+        s.subject.trim() === "" ||
+        s.ospe === null ||
+        s.maxMid === "" ||
+        s.maxFinal === "",
     );
 
     if (hasEmptyField) {
@@ -64,9 +67,11 @@ export default function CsSection() {
           <table className="customTable">
             <thead>
               <tr>
-                <th>S,NO</th>
+                <th>S.NO</th>
                 <th>Subject</th>
                 <th>OSPE</th>
+                <th>Max Mid</th>
+                <th>Max Final</th>
               </tr>
             </thead>
             <tbody>
@@ -106,6 +111,30 @@ export default function CsSection() {
                         No
                       </label>
                     </div>
+                  </td>
+                  <td>
+                    <input
+                      className="tableInput"
+                      type="number"
+                      placeholder="Max Mid"
+                      value={item.maxMid}
+                      style={{ maxWidth: "80px", paddingRight: "1px" }}
+                      onChange={(e) =>
+                        updateSubject(index, "maxMid", e.target.value)
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="tableInput"
+                      type="number"
+                      placeholder="Max Final"
+                      style={{ maxWidth: "80px", paddingRight: "1px" }}
+                      value={item.maxFinal}
+                      onChange={(e) =>
+                        updateSubject(index, "maxFinal", e.target.value)
+                      }
+                    />
                   </td>
                 </tr>
               ))}

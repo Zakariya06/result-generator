@@ -13,7 +13,6 @@ const TableRows = (props) => {
 
     if (l.endsWith("- ospe") || l.includes(" - ospe")) {
       const base = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-      // ✅ Only OSPE-variant keys — no fallback to the base subject name
       return [l, `${base} - ospe`, `${base}-ospe`];
     }
 
@@ -53,7 +52,6 @@ const TableRows = (props) => {
             >
               <td>{student.serial}</td>
 
-              {/* Safe split — won't crash if rollNumber is undefined */}
               <td>{String(student.rollNumber ?? "").split("(")[0]}</td>
 
               <td>{student.name}</td>
@@ -78,7 +76,6 @@ const TableRows = (props) => {
                   return keys.includes(subjectName);
                 });
 
-                // ── Compute total = mid + final if both are numeric ──────────────
                 const computeTotal = (subj) => {
                   if (!subj) return "-";
                   const mid = parseFloat(subj.mid);
@@ -87,8 +84,6 @@ const TableRows = (props) => {
                   return subj.total ?? "-";
                 };
 
-                // 🚫 Subject genuinely doesn't apply to this student
-                // (e.g. a re-appear student who isn't re-appearing in it) → red NA.
                 if (!matchedSubject) {
                   return (
                     <React.Fragment key={i}>
@@ -105,11 +100,28 @@ const TableRows = (props) => {
                   );
                 }
 
-                // ✅ Subject applies to this student — show marks if present,
-                // otherwise a plain "-" (not yet graded), never the red NA.
+                // ── Check if marks exceed max ──────────────────────────────
+                const midVal = parseFloat(matchedSubject.mid);
+                const finalVal = parseFloat(matchedSubject.final);
+
+                const midExceeds =
+                  item.maxMid > 0 && !isNaN(midVal) && midVal > item.maxMid;
+
+                const finalExceeds =
+                  item.maxFinal > 0 &&
+                  !isNaN(finalVal) &&
+                  finalVal > item.maxFinal;
+
                 return (
                   <React.Fragment key={i}>
-                    <td className="text-center">
+                    <td
+                      className="text-center"
+                      style={
+                        midExceeds
+                          ? { backgroundColor: "red", color: "white" }
+                          : {}
+                      }
+                    >
                       {matchedSubject.mid !== "" &&
                       matchedSubject.mid !== null &&
                       matchedSubject.mid !== undefined
@@ -117,7 +129,14 @@ const TableRows = (props) => {
                         : "-"}
                     </td>
 
-                    <td className="text-center">
+                    <td
+                      className="text-center"
+                      style={
+                        finalExceeds
+                          ? { backgroundColor: "red", color: "white" }
+                          : {}
+                      }
+                    >
                       {matchedSubject.final !== "" &&
                       matchedSubject.final !== null &&
                       matchedSubject.final !== undefined
@@ -125,7 +144,9 @@ const TableRows = (props) => {
                         : "-"}
                     </td>
 
-                    <td className="text-center">{computeTotal(matchedSubject)}</td>
+                    <td className="text-center">
+                      {computeTotal(matchedSubject)}
+                    </td>
                   </React.Fragment>
                 );
               })}
