@@ -21,17 +21,30 @@ const possibleKeysForColumn = (label) => {
   const l = norm(label);
   if (l.endsWith("- ospe") || l.includes(" - ospe")) {
     const base = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-    return [l, `${base} - ospe`, `${base}-ospe`]; 
+    return [l, `${base} - ospe`, `${base}-ospe`];
   }
   return [l];
 };
 
-// Same as SheetTable
+// Same as SheetTable — NOW also carries maxMid / maxFinal so we can
+// reproduce the "exceeds max marks" red highlight from TableRows.jsx
 export const buildColumns = (subjects) =>
   (subjects || []).flatMap((s) => {
-    const base = [{ label: s.subject, key: s.subject }];
+    const base = [
+      {
+        label: s.subject,
+        key: s.subject,
+        maxMid: Number(s.maxMid) || 0,
+        maxFinal: Number(s.maxFinal) || 0,
+      },
+    ];
     if (s.ospe)
-      base.push({ label: `${s.subject} - OSPE`, key: `${s.subject}-ospe` });
+      base.push({
+        label: `${s.subject} - OSPE`,
+        key: `${s.subject}-ospe`,
+        maxMid: Number(s.maxMid) || 0,
+        maxFinal: Number(s.maxFinal) || 0,
+      });
     return base;
   });
 
@@ -71,6 +84,8 @@ export async function exportMarksSheetXlsx({
   const columns = buildColumns(subjects);
   const processedStudents = processStudents(studentsData);
 
+  // NOTE: Status + Action columns from the React table are intentionally
+  // NOT part of totalCols here — Excel only has the 8 fixed cols + marks.
   const totalCols = 8 + columns.length * 3;
 
   const wb = new ExcelJS.Workbook();
@@ -121,6 +136,7 @@ export async function exportMarksSheetXlsx({
   const headerRow1 = 4;
   const headerRow2 = 5;
 
+  // Status / Action columns are deliberately excluded here (removed per request)
   const fixedHeaders = [
     { text: "S#", col: 1 },
     { text: "Roll #", col: 2 },
@@ -210,9 +226,16 @@ export async function exportMarksSheetXlsx({
 
   students.forEach((student, idx) => {
     const excelRowIndex = firstDataRow + idx;
-    const rowValues = buildRowValues(student, columns);
-    ws.addRow(rowValues);
-    styleDataRow(ws, excelRowIndex, totalCols, student.isRA, borderAll);
+    const { values, exceedFlags } = buildRowValues(student, columns);
+    ws.addRow(values);
+    styleDataRow(
+      ws,
+      excelRowIndex,
+      totalCols,
+      student.isRA,
+      borderAll,
+      exceedFlags,
+    );
   });
 
   ws.autoFilter = {
@@ -265,6 +288,10 @@ const computeTotal = (subj) => {
   return subj.total ?? "-";
 };
 
+// Returns both the cell values AND a parallel "exceedFlags" array describing
+// which Mid/Final cells go over max marks — same check as TableRows.jsx:
+//   midExceeds = item.maxMid > 0 && !isNaN(midVal) && midVal > item.maxMid
+//   finalExceeds = item.maxFinal > 0 && !isNaN(finalVal) && finalVal > item.maxFinal
 function buildRowValues(student, columns) {
   const base = [
     student.serial ?? "",
@@ -278,6 +305,7 @@ function buildRowValues(student, columns) {
   ];
 
   const marksCells = [];
+  const exceedFlags = []; // one entry per marks cell, aligned with marksCells
 
   columns.forEach((col) => {
     const keys = possibleKeysForColumn(col.label);
@@ -294,19 +322,40 @@ function buildRowValues(student, columns) {
 
     if (!matchedSubject) {
       marksCells.push("NA", "NA", "NA");
+      exceedFlags.push(false, false, false);
     } else {
-      const mid = matchedSubject.mid ?? "-";
-      const final = matchedSubject.final ?? "-";
-      const total = computeTotal(matchedSubject); // ← computed here
+      const midVal = parseFloat(matchedSubject.mid);
+      const finalVal = parseFloat(matchedSubject.final);
+
+      const midExceeds =
+        col.maxMid > 0 && !isNaN(midVal) && midVal > col.maxMid;
+      const finalExceeds =
+        col.maxFinal > 0 && !isNaN(finalVal) && finalVal > col.maxFinal;
+
+      const mid =
+        matchedSubject.mid !== "" &&
+        matchedSubject.mid !== null &&
+        matchedSubject.mid !== undefined
+          ? matchedSubject.mid
+          : "-";
+      const final =
+        matchedSubject.final !== "" &&
+        matchedSubject.final !== null &&
+        matchedSubject.final !== undefined
+          ? matchedSubject.final
+          : "-";
+      const total = computeTotal(matchedSubject);
+
       marksCells.push(mid, final, total);
+      exceedFlags.push(midExceeds, finalExceeds, false); // Total cell never highlighted for "exceeds"
     }
   });
 
-  return [...base, ...marksCells];
+  return { values: [...base, ...marksCells], exceedFlags };
 }
 
 // ── styleDataRow ──────────────────────────────────────────────────────────────
-function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
+function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll, exceedFlags) {
   const row = ws.getRow(rowNumber);
   row.height = 18;
 
@@ -320,8 +369,15 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
     pattern: "solid",
     fgColor: { argb: "FFFFC7CE" },
   };
+  // Same red-on-white style TableRows.jsx uses for "exceeds max marks"
+  const exceedFill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFF0000" },
+  };
+  const exceedFont = { color: { argb: "FFFFFFFF" } };
 
-  row.eachCell({ includeEmpty: true }, (cell) => {
+  row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
     cell.border = borderAll;
     cell.alignment = {
       vertical: "middle",
@@ -329,6 +385,17 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
       wrapText: false,
     };
 
+    const isMarksCell = colNumber >= 9;
+    const exceedIndex = colNumber - 9; // index into exceedFlags for marks columns
+
+    // 1) Exceeds-max-marks takes priority (matches TableRows red highlight)
+    if (isMarksCell && exceedFlags && exceedFlags[exceedIndex]) {
+      cell.fill = exceedFill;
+      cell.font = exceedFont;
+      return;
+    }
+
+    // 2) NA highlight (unmatched subject)
     if (
       String(cell.value ?? "")
         .trim()
@@ -339,6 +406,7 @@ function styleDataRow(ws, rowNumber, totalCols, isRA, borderAll) {
       return;
     }
 
+    // 3) Re-appear row tint
     if (isRA) cell.fill = raFill;
   });
 

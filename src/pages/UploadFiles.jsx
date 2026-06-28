@@ -1,4 +1,4 @@
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react"; // <-- Added useEffect here
 import { useNavigate } from "react-router-dom";
 import ExcelDropzone from "../components/ExcelDropzone";
 import {
@@ -19,6 +19,7 @@ import {
   formatFinalMarksPhysical,
 } from "../utils/marksSheetFormater";
 import FinalMarksUploader from "../components/upload/FinalMarksUploader";
+import StudentFormModal from "../components/modals/StudentFormModal";
 
 export default function UploadFiles() {
   const [file1Data, setFile1Data] = useState(null);
@@ -29,13 +30,19 @@ export default function UploadFiles() {
   const [activeDropzone, setActiveDropzone] = useState("ospelist");
   const [isPending, startTransition] = useTransition();
 
+  // Modal State for Add/Edit
+  const [showStudentModal, setShowStudentModal] = useState(false);
+
   const {
     saveAllStudentData,
     studentsData,
     addData,
     clearAllStudents,
     subjects,
+    editingStudent,
+    setEditingStudent,
   } = useSubject();
+
   const navigate = useNavigate();
 
   const uploadStep = Number(localStorage.getItem("uploadStep") || "0");
@@ -44,6 +51,46 @@ export default function UploadFiles() {
 
   const hasStudentsData = studentsData?.length > 0 || uploadStep >= 1;
   const hasReAppearData = uploadStep >= 2;
+
+  // ── FIX: Listen for editingStudent changes and open modal ────────────
+  useEffect(() => {
+    if (editingStudent) {
+      setShowStudentModal(true);
+    }
+  }, [editingStudent]);
+  // ────────────────────────────────────────────────────────────────────────
+
+  // ── Add / Edit Modal Handlers ──────────────────────────────────────────
+  const handleAddNewRecord = () => {
+    setEditingStudent(null);
+    setShowStudentModal(true);
+  };
+
+  // Close edit/add modal
+  const handleCloseStudentModal = () => {
+    setShowStudentModal(false);
+    setEditingStudent(null); // Clear editing state on close
+  };
+
+  // Save logic for Add/Edit
+  const handleSaveStudent = async (data) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        if (editingStudent) {
+          // Update existing
+          const updated = studentsData.map((s) =>
+            s.rollNumber === data.rollNumber ? data : s,
+          );
+          saveAllStudentData(updated);
+        } else {
+          // Add new
+          addData(data);
+        }
+        resolve();
+      }, 600); // Artificial delay for cool loader effect
+    });
+  };
+  // ────────────────────────────────────────────────────────────────────────
 
   const handleMultipleFilesOspeSheetDataData = (allFilesData) => {
     const merged = allFilesData.flatMap(({ fileName, data }) =>
@@ -296,9 +343,20 @@ export default function UploadFiles() {
           )}
         </div>
 
-        <p className="countText">
-          Total Students: ({studentsData?.length ?? 0})
-        </p>
+        <div className="d-flex align-items-center gap-3">
+          <p className="countText mb-0">
+            Total Students: ({studentsData?.length ?? 0})
+          </p>
+          {hasStudentsData && (
+            <button
+              className="btn btn-outline-primary d-flex align-items-center gap-1"
+              onClick={handleAddNewRecord}
+            >
+              <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>+</span> Add
+              Record
+            </button>
+          )}
+        </div>
       </div>
 
       <Modal centered size="md" show={show} onHide={() => setShow(false)}>
@@ -338,7 +396,7 @@ export default function UploadFiles() {
               {activeDropzone === "addMoreStudenlist" && (
                 <ExcelDropzone
                   label="Upload Re-Appear / Subject Details"
-                  onData={handleAddReaAppearStudentData}
+                  onData={handleAddReAppearStudentData}
                 />
               )}
 
@@ -360,6 +418,15 @@ export default function UploadFiles() {
           )}
         </Modal.Body>
       </Modal>
+
+      {/* Add/Edit Student Modal */}
+      <StudentFormModal
+        show={showStudentModal}
+        onHide={handleCloseStudentModal}
+        studentData={editingStudent}
+        subjects={subjects}
+        onSave={handleSaveStudent}
+      />
     </>
   );
 }

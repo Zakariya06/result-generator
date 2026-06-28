@@ -90,6 +90,7 @@ const SheetTable = () => {
             </th>
           ))}
           <th rowSpan="2">Status</th>
+          <th rowSpan="2">Action</th>  
         </tr>
 
         <tr>

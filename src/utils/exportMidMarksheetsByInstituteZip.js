@@ -17,7 +17,7 @@ const parseRollNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
-// ✅ for a column label, return all possible keys to match in student.subjects (OSPE fix)
+// for a column label, return all possible keys to match in student.subjects (OSPE fix)
 const possibleKeysForColumn = (label) => {
   const l = norm(label);
 
@@ -30,11 +30,18 @@ const possibleKeysForColumn = (label) => {
 };
 
 // build columns like your UI (subject + its ospe column if exists)
+// now also carries maxMid so we can reproduce the "exceeds max marks" highlight
 export const buildColumns = (subjects) =>
   (subjects || []).flatMap((s) => {
-    const base = [{ label: s.subject, key: s.subject }];
+    const base = [
+      { label: s.subject, key: s.subject, maxMid: Number(s.maxMid) || 0 },
+    ];
     if (s.ospe)
-      base.push({ label: `${s.subject} - OSPE`, key: `${s.subject}-ospe` });
+      base.push({
+        label: `${s.subject} - OSPE`,
+        key: `${s.subject}-ospe`,
+        maxMid: Number(s.maxMid) || 0,
+      });
     return base;
   });
 
@@ -68,7 +75,7 @@ export const processStudents = (studentsData) => {
   });
 };
 
-// ---------- NEW: EXPORT MID-ONLY SHEET (single workbook) ----------
+// ---------- EXPORT MID-ONLY SHEET (single workbook) ----------
 async function createMidOnlyWorkbook({
   subjects,
   studentsData,
@@ -77,7 +84,8 @@ async function createMidOnlyWorkbook({
   const columns = buildColumns(subjects);
   const processedStudents = processStudents(studentsData);
 
-  // ✅ Total columns: 8 fixed + (columns.length * 1) [MID ONLY]
+  // Total columns: 8 fixed + (columns.length * 1) [MID ONLY]
+  // Status / Action columns are intentionally excluded (removed per request).
   const totalCols = 8 + columns.length;
 
   const wb = new ExcelJS.Workbook();
@@ -94,11 +102,11 @@ async function createMidOnlyWorkbook({
     right: { style: "thin" },
   };
 
-  // ✅ column widths (8 fixed)
+  // column widths (8 fixed)
   const baseWidths = [6, 18, 22, 22, 24, 16, 18, 26];
   for (let c = 1; c <= 8; c++) ws.getColumn(c).width = baseWidths[c - 1];
 
-  // ✅ each subject is ONE column now (Mid only) starts at column 9
+  // each subject is ONE column now (Mid only) starts at column 9
   for (let i = 0; i < columns.length; i++) {
     ws.getColumn(9 + i).width = 12;
   }
@@ -142,7 +150,7 @@ async function createMidOnlyWorkbook({
     { text: "S#", col: 1 },
     { text: "Roll #", col: 2 },
     { text: "Name", col: 3 },
-    { text: "Father’s Name", col: 4 },
+    { text: "Father's Name", col: 4 },
     { text: "Registration", col: 5 },
     { text: "Discipline", col: 6 },
     { text: "Regular / Re-appear", col: 7 },
@@ -162,7 +170,7 @@ async function createMidOnlyWorkbook({
     };
   });
 
-  // ✅ Subject columns start at 9; row4 = label, row5 = "Mid"
+  // Subject columns start at 9; row4 = label, row5 = "Mid"
   let startCol = 9;
   columns.forEach((col) => {
     const labelCell = ws.getCell(headerRow1, startCol);
@@ -224,15 +232,15 @@ async function createMidOnlyWorkbook({
       isRA: false,
     };
 
-    const rowValues = buildRowValuesMidOnly(demo, columns);
-    ws.addRow(rowValues);
-    styleDataRow(ws, firstDataRow, demo.isRA, borderAll);
+    const { values, exceedFlags } = buildRowValuesMidOnly(demo, columns);
+    ws.addRow(values);
+    styleDataRow(ws, firstDataRow, demo.isRA, borderAll, exceedFlags);
   } else {
     processedStudents.forEach((student, idx) => {
       const excelRowIndex = firstDataRow + idx;
-      const rowValues = buildRowValuesMidOnly(student, columns);
-      ws.addRow(rowValues);
-      styleDataRow(ws, excelRowIndex, student.isRA, borderAll);
+      const { values, exceedFlags } = buildRowValuesMidOnly(student, columns);
+      ws.addRow(values);
+      styleDataRow(ws, excelRowIndex, student.isRA, borderAll, exceedFlags);
     });
   }
 
@@ -244,15 +252,9 @@ async function createMidOnlyWorkbook({
   return wb;
 }
 
-// build row values in the exact order of columns (MID ONLY)
-const computeTotal = (subj) => {
-  if (!subj) return "NA";
-  const mid = parseFloat(subj.mid);
-  const final = parseFloat(subj.final);
-  if (!isNaN(mid) && !isNaN(final)) return mid + final;
-  return subj.total ?? "-";
-};
-
+// Same "exceeds max marks" check as TableRows.jsx (mid only, since this
+// sheet only shows Mid marks):
+//   midExceeds = col.maxMid > 0 && !isNaN(midVal) && midVal > col.maxMid
 function buildRowValuesMidOnly(student, columns) {
   const base = [
     student.serial ?? "",
@@ -266,11 +268,12 @@ function buildRowValuesMidOnly(student, columns) {
   ];
 
   const marksCells = [];
+  const exceedFlags = []; // one entry per marks cell, aligned with marksCells
 
   columns.forEach((col) => {
     const keys = possibleKeysForColumn(col.label);
 
-    // ── Find the actual subject object (same pattern as TableRows) ─────────
+    // Find the actual subject object (same pattern as TableRows)
     const matchedSubject = (
       Array.isArray(student.subjects) ? student.subjects : []
     ).find((s) => {
@@ -281,14 +284,23 @@ function buildRowValuesMidOnly(student, columns) {
       return keys.includes(subjectName);
     });
 
-    // Mid-only sheet: one cell per subject
-    marksCells.push(matchedSubject ? (matchedSubject.mid ?? "-") : "NA");
+    if (!matchedSubject) {
+      marksCells.push("NA");
+      exceedFlags.push(false);
+      return;
+    }
+
+    const midVal = parseFloat(matchedSubject.mid);
+    const midExceeds = col.maxMid > 0 && !isNaN(midVal) && midVal > col.maxMid;
+
+    marksCells.push(matchedSubject.mid ?? "-");
+    exceedFlags.push(midExceeds);
   });
 
-  return [...base, ...marksCells];
+  return { values: [...base, ...marksCells], exceedFlags };
 }
 
-function styleDataRow(ws, rowNumber, isRA, borderAll) {
+function styleDataRow(ws, rowNumber, isRA, borderAll, exceedFlags) {
   const row = ws.getRow(rowNumber);
   row.height = 18;
 
@@ -304,7 +316,15 @@ function styleDataRow(ws, rowNumber, isRA, borderAll) {
     fgColor: { argb: "FFFFC7CE" },
   };
 
-  row.eachCell({ includeEmpty: true }, (cell) => {
+  // Same red highlight TableRows.jsx uses for "exceeds max marks"
+  const exceedFill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFF0000" },
+  };
+  const exceedFont = { color: { argb: "FFFFFFFF" } };
+
+  row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
     cell.border = borderAll;
     cell.alignment = {
       vertical: "middle",
@@ -312,15 +332,28 @@ function styleDataRow(ws, rowNumber, isRA, borderAll) {
       wrapText: false,
     };
 
+    const isMarksCell = colNumber >= 9;
+    const exceedIndex = colNumber - 9;
+
+    // 1) Exceeds-max-marks takes priority
+    if (isMarksCell && exceedFlags && exceedFlags[exceedIndex]) {
+      cell.fill = exceedFill;
+      cell.font = exceedFont;
+      return;
+    }
+
+    // 2) NA highlight
     if (
       String(cell.value ?? "")
         .trim()
         .toUpperCase() === "NA"
     ) {
       cell.fill = naFill;
+      cell.font = { color: { argb: "FF9B0000" } };
       return;
     }
 
+    // 3) Re-appear row tint
     if (isRA) {
       cell.fill = raFill;
     }
@@ -344,7 +377,7 @@ function styleDataRow(ws, rowNumber, isRA, borderAll) {
   };
 }
 
-// ---------- NEW: ZIP EXPORT (one file per institute) ----------
+// ---------- ZIP EXPORT (one file per institute) ----------
 const safeFileName = (name) =>
   String(name || "Institute")
     .trim()
