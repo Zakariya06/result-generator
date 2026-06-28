@@ -89,6 +89,7 @@ const SheetTable = () => {
               {col.label}
             </th>
           ))}
+          <th rowSpan="2">Status</th>
         </tr>
 
         <tr>

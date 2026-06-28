@@ -19,6 +19,9 @@ const TableRows = (props) => {
     return [l];
   };
 
+  console.log("All Students Data :::", processedStudents);
+  console.log("All Columns Data :::", columns);
+
   return (
     <>
       {processedStudents.length === 0 ? (
@@ -39,10 +42,119 @@ const TableRows = (props) => {
               <td>-</td>
             </React.Fragment>
           ))}
+          <td style={{ textAlign: "center" }}>P</td>
         </tr>
       ) : (
         processedStudents.map((student, index) => {
           if (!student || typeof student !== "object") return null;
+
+          // ── Status Calculation Variables ──────────────────────────────
+          let totalApplicableSubjects = 0;
+          let failedSubjects = 0;
+
+          const subjectCells = columns.map((item, i) => {
+            const keys = possibleKeysForColumn(item.label);
+
+            const matchedSubject = (student.subjects || []).find((s) => {
+              if (!s) return false;
+              const subjectName = norm(
+                s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title,
+              );
+              return keys.includes(subjectName);
+            });
+
+            const computeTotal = (subj) => {
+              if (!subj) return "-";
+              const mid = parseFloat(subj.mid);
+              const final = parseFloat(subj.final);
+              if (!isNaN(mid) && !isNaN(final)) return mid + final;
+              return subj.total ?? "-";
+            };
+
+            if (!matchedSubject) {
+              return (
+                <React.Fragment key={i}>
+                  <td className="text-center">
+                    <span style={{ color: "red" }}>NA</span>
+                  </td>
+                  <td className="text-center">
+                    <span style={{ color: "red" }}>NA</span>
+                  </td>
+                  <td className="text-center">
+                    <span style={{ color: "red" }}>NA</span>
+                  </td>
+                </React.Fragment>
+              );
+            }
+
+            // ── Check if marks exceed max ──────────────────────────────
+            const midVal = parseFloat(matchedSubject.mid);
+            const finalVal = parseFloat(matchedSubject.final);
+
+            const midExceeds =
+              item.maxMid > 0 && !isNaN(midVal) && midVal > item.maxMid;
+
+            const finalExceeds =
+              item.maxFinal > 0 && !isNaN(finalVal) && finalVal > item.maxFinal;
+
+            // ── Check if subject is passed (>= 50% of max marks) ───────
+            const maxTotal = item.maxMid + item.maxFinal;
+            const obtainedTotal = computeTotal(matchedSubject);
+            const obtainedMarks =
+              typeof obtainedTotal === "number"
+                ? obtainedTotal
+                : parseFloat(obtainedTotal);
+
+            totalApplicableSubjects++;
+
+            // If marks are missing (NaN) or less than 50%, it's a fail
+            if (
+              maxTotal > 0 &&
+              (isNaN(obtainedMarks) || obtainedMarks < maxTotal * 0.5)
+            ) {
+              failedSubjects++;
+            }
+
+            return (
+              <React.Fragment key={i}>
+                <td
+                  className="text-center"
+                  style={
+                    midExceeds ? { backgroundColor: "red", color: "white" } : {}
+                  }
+                >
+                  {matchedSubject.mid !== "" &&
+                  matchedSubject.mid !== null &&
+                  matchedSubject.mid !== undefined
+                    ? matchedSubject.mid
+                    : "-"}
+                </td>
+
+                <td
+                  className="text-center"
+                  style={
+                    finalExceeds
+                      ? { backgroundColor: "red", color: "white" }
+                      : {}
+                  }
+                >
+                  {matchedSubject.final !== "" &&
+                  matchedSubject.final !== null &&
+                  matchedSubject.final !== undefined
+                    ? matchedSubject.final
+                    : "-"}
+                </td>
+
+                <td className="text-center">{computeTotal(matchedSubject)}</td>
+              </React.Fragment>
+            );
+          });
+
+          // ── Determine Final Status ────────────────────────────────────
+          // If failed subjects are >= half of the total subjects, status is NP
+          const isFailed =
+            totalApplicableSubjects > 0 &&
+            failedSubjects >= Math.ceil(totalApplicableSubjects / 2);
 
           return (
             <tr
@@ -51,9 +163,7 @@ const TableRows = (props) => {
               style={{ textWrap: "nowrap" }}
             >
               <td>{student.serial}</td>
-
               <td>{String(student.rollNumber ?? "").split("(")[0]}</td>
-
               <td>{student.name}</td>
               <td>{student.fatherName}</td>
               <td>{student.registration}</td>
@@ -61,95 +171,18 @@ const TableRows = (props) => {
               <td>{student.isRA ? "Re-appear" : "Regular"}</td>
               <td>{student.institute}</td>
 
-              {columns.map((item, i) => {
-                const keys = possibleKeysForColumn(item.label);
+              {subjectCells}
 
-                const matchedSubject = (student.subjects || []).find((s) => {
-                  if (!s) return false;
-                  const subjectName = norm(
-                    s?.label ??
-                      s?.name ??
-                      s?.subject ??
-                      s?.subjectName ??
-                      s?.title,
-                  );
-                  return keys.includes(subjectName);
-                });
-
-                const computeTotal = (subj) => {
-                  if (!subj) return "-";
-                  const mid = parseFloat(subj.mid);
-                  const final = parseFloat(subj.final);
-                  if (!isNaN(mid) && !isNaN(final)) return mid + final;
-                  return subj.total ?? "-";
-                };
-
-                if (!matchedSubject) {
-                  return (
-                    <React.Fragment key={i}>
-                      <td className="text-center">
-                        <span style={{ color: "red" }}>NA</span>
-                      </td>
-                      <td className="text-center">
-                        <span style={{ color: "red" }}>NA</span>
-                      </td>
-                      <td className="text-center">
-                        <span style={{ color: "red" }}>NA</span>
-                      </td>
-                    </React.Fragment>
-                  );
-                }
-
-                // ── Check if marks exceed max ──────────────────────────────
-                const midVal = parseFloat(matchedSubject.mid);
-                const finalVal = parseFloat(matchedSubject.final);
-
-                const midExceeds =
-                  item.maxMid > 0 && !isNaN(midVal) && midVal > item.maxMid;
-
-                const finalExceeds =
-                  item.maxFinal > 0 &&
-                  !isNaN(finalVal) &&
-                  finalVal > item.maxFinal;
-
-                return (
-                  <React.Fragment key={i}>
-                    <td
-                      className="text-center"
-                      style={
-                        midExceeds
-                          ? { backgroundColor: "red", color: "white" }
-                          : {}
-                      }
-                    >
-                      {matchedSubject.mid !== "" &&
-                      matchedSubject.mid !== null &&
-                      matchedSubject.mid !== undefined
-                        ? matchedSubject.mid
-                        : "-"}
-                    </td>
-
-                    <td
-                      className="text-center"
-                      style={
-                        finalExceeds
-                          ? { backgroundColor: "red", color: "white" }
-                          : {}
-                      }
-                    >
-                      {matchedSubject.final !== "" &&
-                      matchedSubject.final !== null &&
-                      matchedSubject.final !== undefined
-                        ? matchedSubject.final
-                        : "-"}
-                    </td>
-
-                    <td className="text-center">
-                      {computeTotal(matchedSubject)}
-                    </td>
-                  </React.Fragment>
-                );
-              })}
+              <td
+                style={{
+                  textAlign: "center",
+                  fontWeight: "bold",
+                  backgroundColor: isFailed ? "red" : "green",
+                  color: "white",
+                }}
+              >
+                {isFailed ? "NP" : "P"}
+              </td>
             </tr>
           );
         })
