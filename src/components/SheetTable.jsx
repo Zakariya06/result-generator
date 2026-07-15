@@ -13,10 +13,9 @@ const parseRollNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
-const SheetTable = () => {
-  const { subjects, studentsData } = useSubject();
-
-  const columns = subjects.flatMap((s) => {
+// ── UPDATED buildColumns with parentheses fix ──────────────────────
+const buildColumns = (subjects) =>
+  (subjects || []).flatMap((s) => {
     const base = [
       {
         label: s.subject,
@@ -25,15 +24,24 @@ const SheetTable = () => {
         maxFinal: Number(s.maxFinal) || 0,
       },
     ];
-    if (s.ospe)
+    if (s.ospe) {
       base.push({
         label: `${s.subject} - OSPE`,
         key: `${s.subject}-ospe`,
-        maxMid: Number(s.maxMid) || 0,
-        maxFinal: Number(s.maxFinal) || 0,
+        // Use OSPE-specific max values, fallback to base if not set
+        // Wrap ?? with parentheses to avoid mixing with ||
+        maxMid: (Number(s.ospeMaxMid) ?? Number(s.maxMid)) || 0,
+        maxFinal: (Number(s.ospeMaxFinal) ?? Number(s.maxFinal)) || 0,
       });
+    }
     return base;
   });
+// ────────────────────────────────────────────────────────────────────
+
+const SheetTable = () => {
+  const { subjects, studentsData } = useSubject();
+
+  const columns = buildColumns(subjects);
 
   const processedStudents = useMemo(() => {
     const sorted = [...(studentsData || [])].sort((a, b) => {
@@ -90,7 +98,7 @@ const SheetTable = () => {
             </th>
           ))}
           <th rowSpan="2">Status</th>
-          <th rowSpan="2">Action</th>  
+          <th rowSpan="2">Action</th>
         </tr>
 
         <tr>

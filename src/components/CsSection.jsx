@@ -1,24 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSubject } from "../context/SubjectContext";
+import Modal from "react-bootstrap/Modal";
+import Form from "react-bootstrap/Form";
+import Button from "react-bootstrap/Button";
 
 export default function CsSection() {
+  const { subjects: contextSubjects, saveSubjects } = useSubject();
+  const navigate = useNavigate();
+
   const [count, setCount] = useState("");
   const [subjects, setSubjects] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [tempSubjects, setTempSubjects] = useState([]); // for modal editing
 
-  const { saveSubjects } = useSubject();
-  const navigate = useNavigate();
+  // Load existing subjects from context on mount
+  useEffect(() => {
+    if (contextSubjects?.length) {
+      setSubjects(contextSubjects);
+      setCount(contextSubjects.length.toString());
+    }
+  }, [contextSubjects]);
 
   const handleCountChange = (value) => {
     setCount(value);
-    setSubjects(
-      Array.from({ length: value }, () => ({
-        subject: "",
-        ospe: null,
-        maxMid: "",
-        maxFinal: "",
-      })),
-    );
+    const newSubjects = Array.from({ length: value }, () => ({
+      subject: "",
+      ospe: null,
+      maxMid: "",
+      maxFinal: "",
+      ospeMaxMid: "",
+      ospeMaxFinal: "",
+    }));
+    setSubjects(newSubjects);
   };
 
   const updateSubject = (index, key, value) => {
@@ -27,22 +41,52 @@ export default function CsSection() {
     setSubjects(updated);
   };
 
+  // Open modal after validation
   const handleGenerate = () => {
     const hasEmptyField = subjects.some(
-      (s) =>
-        s.subject.trim() === "" ||
-        s.ospe === null ||
-        s.maxMid === "" ||
-        s.maxFinal === "",
+      (s) => s.subject.trim() === "" || s.ospe === null,
     );
-
     if (hasEmptyField) {
-      alert("Please fill all the fields");
+      alert("Please fill all subject names and select OSPE for each.");
+      return;
+    }
+    // Copy current subjects to temp for editing in modal
+    setTempSubjects(subjects.map((s) => ({ ...s })));
+    setShowModal(true);
+  };
+
+  // Save changes from modal
+  const handleModalSave = () => {
+    // Validate max marks
+    const invalid = tempSubjects.some((s) => {
+      if (s.maxMid === "" || s.maxFinal === "") return true;
+      if (s.ospe && (s.ospeMaxMid === "" || s.ospeMaxFinal === "")) return true;
+      return false;
+    });
+    if (invalid) {
+      alert("Please fill all max marks fields (and OSPE ones if applicable).");
       return;
     }
 
-    saveSubjects(subjects);
+    // Convert to numbers
+    const updated = tempSubjects.map((s) => ({
+      ...s,
+      maxMid: Number(s.maxMid),
+      maxFinal: Number(s.maxFinal),
+      ospeMaxMid: s.ospe ? Number(s.ospeMaxMid) : undefined,
+      ospeMaxFinal: s.ospe ? Number(s.ospeMaxFinal) : undefined,
+    }));
+
+    setSubjects(updated);
+    saveSubjects(updated);
+    setShowModal(false);
     navigate("/sheet");
+  };
+
+  const handleClear = () => {
+    setSubjects([]);
+    setCount("");
+    setShowModal(false);
   };
 
   return (
@@ -70,8 +114,6 @@ export default function CsSection() {
                 <th>S.NO</th>
                 <th>Subject</th>
                 <th>OSPE</th>
-                <th>Max Mid</th>
-                <th>Max Final</th>
               </tr>
             </thead>
             <tbody>
@@ -112,30 +154,6 @@ export default function CsSection() {
                       </label>
                     </div>
                   </td>
-                  <td>
-                    <input
-                      className="tableInput"
-                      type="number"
-                      placeholder="Max Mid"
-                      value={item.maxMid}
-                      style={{ maxWidth: "80px", paddingRight: "1px" }}
-                      onChange={(e) =>
-                        updateSubject(index, "maxMid", e.target.value)
-                      }
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="tableInput"
-                      type="number"
-                      placeholder="Max Final"
-                      style={{ maxWidth: "80px", paddingRight: "1px" }}
-                      value={item.maxFinal}
-                      onChange={(e) =>
-                        updateSubject(index, "maxFinal", e.target.value)
-                      }
-                    />
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -145,19 +163,107 @@ export default function CsSection() {
             <button className="secondaryButton" onClick={handleGenerate}>
               Generate Subject
             </button>
-
-            <button
-              className="secondaryButton"
-              onClick={() => {
-                setSubjects([]);
-                setCount("");
-              }}
-            >
+            <button className="secondaryButton" onClick={handleClear}>
               Clear
             </button>
           </div>
         </>
       )}
+
+      {/* Bootstrap Modal for max marks */}
+      <Modal
+        show={showModal}
+        onHide={() => setShowModal(false)}
+        size="md"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>Configure Max Marks</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {tempSubjects.map((subj, idx) => (
+            <div key={idx} className="mb-4 border-bottom pb-3">
+              <h6 className="fw-bold">
+                {subj.subject} {subj.ospe ? "(with OSPE)" : ""}
+              </h6>
+              <div className="row g-2">
+                <div className="col-md-3">
+                  <Form.Label>Max Mid</Form.Label>
+                  <Form.Control
+                    type="number"
+                    placeholder="e.g. 50"
+                    value={subj.maxMid}
+                    onChange={(e) => {
+                      const updated = [...tempSubjects];
+                      updated[idx].maxMid = e.target.value;
+                      setTempSubjects(updated);
+                    }}
+                    min="0"
+                    required
+                  />
+                </div>
+                <div className="col-md-3">
+                  <Form.Label>Max Final</Form.Label>
+                  <Form.Control
+                    type="number"
+                    placeholder="e.g. 50"
+                    value={subj.maxFinal}
+                    onChange={(e) => {
+                      const updated = [...tempSubjects];
+                      updated[idx].maxFinal = e.target.value;
+                      setTempSubjects(updated);
+                    }}
+                    min="0"
+                    required
+                  />
+                </div>
+                {subj.ospe && (
+                  <>
+                    <div className="col-md-3">
+                      <Form.Label>OSPE Max Mid</Form.Label>
+                      <Form.Control
+                        type="number"
+                        placeholder="e.g. 20"
+                        value={subj.ospeMaxMid || ""}
+                        onChange={(e) => {
+                          const updated = [...tempSubjects];
+                          updated[idx].ospeMaxMid = e.target.value;
+                          setTempSubjects(updated);
+                        }}
+                        min="0"
+                        required
+                      />
+                    </div>
+                    <div className="col-md-3">
+                      <Form.Label>OSPE Max Final</Form.Label>
+                      <Form.Control
+                        type="number"
+                        placeholder="e.g. 20"
+                        value={subj.ospeMaxFinal || ""}
+                        onChange={(e) => {
+                          const updated = [...tempSubjects];
+                          updated[idx].ospeMaxFinal = e.target.value;
+                          setTempSubjects(updated);
+                        }}
+                        min="0"
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleModalSave}>
+            Save & Generate Sheet
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
