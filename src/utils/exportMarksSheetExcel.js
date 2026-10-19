@@ -143,6 +143,8 @@ const buildRowValues = (student, columns) => {
 
 const computeTotal = (subj) => {
   if (!subj) return "NA";
+  // If either mid or final is "NA" (absent), total is also NA
+  if (String(subj.mid ?? "").toUpperCase() === "NA" || String(subj.final ?? "").toUpperCase() === "NA") return "NA";
   const mid = parseFloat(subj.mid);
   const final = parseFloat(subj.final);
   if (!isNaN(mid) && !isNaN(final)) return mid + final;

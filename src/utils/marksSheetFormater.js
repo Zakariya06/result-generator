@@ -65,8 +65,11 @@ export function mergeMidMarksData(baseData, uploadedData) {
       .trim()
       .toLowerCase();
 
-  const byRollNo = new Map();
-  const byRegistration = new Map();
+  // ── Build lookup maps from uploaded mid data ─────────────────────────
+  const byRollNo = new Map();       // digits-only roll → uploaded row
+  const byRegistration = new Map(); // normalized registration → uploaded row
+  const byNameFather = new Map();   // "name|fatherName" → uploaded row (fallback)
+  const byName = new Map();         // normalized name → uploaded row (last resort)
 
   uploadedData.forEach((s) => {
     const roll = norm(s.rollNo).replace(/\D/g, "");
@@ -74,22 +77,109 @@ export function mergeMidMarksData(baseData, uploadedData) {
 
     const reg = norm(s.registration);
     if (reg) byRegistration.set(reg, s);
+
+    const name = norm(s.name ?? "");
+    const father = norm(s.fatherName ?? "");
+    if (name && father) byNameFather.set(`${name}|${father}`, s);
+    if (name) byName.set(name, s);
   });
 
-  const findUploaded = (student) => {
-    const roll = norm(student.rollNumber).replace(/\D/g, "");
-    if (roll && byRollNo.has(roll)) return byRollNo.get(roll);
+  // ── Name-similarity helper ────────────────────────────────────────────
+  // Returns true when at least one significant word (length > 2) is shared
+  // between the two strings, OR when we lack data to compare (fail-open).
+  const namesSimilar = (a, b) => {
+    const wordsA = norm(a ?? "").split(/\s+/).filter((w) => w.length > 2);
+    const wordsB = norm(b ?? "").split(/\s+/).filter((w) => w.length > 2);
+    if (!wordsA.length || !wordsB.length) return true; // can't compare — allow
+    return wordsA.some((wa) => wordsB.some((wb) => wa === wb || wa.startsWith(wb) || wb.startsWith(wa)));
+  };
 
-    const reg = norm(student.registration);
-    if (reg && byRegistration.has(reg)) return byRegistration.get(reg);
+  // ── Verify that a candidate from the uploaded file actually matches the
+  //    base student — at least one of name or fatherName must be similar.
+  //    This prevents false positives when two students accidentally share the
+  //    same roll-number digits (e.g. a manually added student given the wrong
+  //    roll number that collides with a real student in the uploaded file).
+  const isRealMatch = (candidate, student) => {
+    const nameSim = namesSimilar(candidate.name, student.name ?? "");
+    const fatherSim = namesSimilar(candidate.fatherName, student.fatherName ?? "");
+    return nameSim || fatherSim;
+  };
+
+  // ── Find uploaded row for a base student (with name guard) ───────────
+  const findUploaded = (student) => {
+    // 1. Roll number (digits-only) — most reliable, but verify name too
+    const roll = norm(student.rollNumber ?? "").replace(/\D/g, "");
+    if (roll && byRollNo.has(roll)) {
+      const candidate = byRollNo.get(roll);
+      if (isRealMatch(candidate, student)) return candidate;
+      // Roll matched but names are completely different → false hit, skip
+    }
+
+    // 2. Registration (exact normalized) — verify name too
+    const reg = norm(student.registration ?? "");
+    if (reg && byRegistration.has(reg)) {
+      const candidate = byRegistration.get(reg);
+      if (isRealMatch(candidate, student)) return candidate;
+    }
+
+    // 3. Name + father name (exact combo) — no extra guard needed
+    const name = norm(student.name ?? "");
+    const father = norm(student.fatherName ?? "");
+    if (name && father && byNameFather.has(`${name}|${father}`)) {
+      return byNameFather.get(`${name}|${father}`);
+    }
+
+    // 4. Name only (last resort)
+    if (name && byName.has(name)) return byName.get(name);
 
     return null;
   };
 
+  // ── Collect all subject names present in the uploaded mid file ────────
+  // Any student missing from the upload will get mid: "NA" for these subjects.
+  const uploadedSubjectNames = new Set();
+  uploadedData.forEach((s) => {
+    if (s.midMarks) {
+      Object.keys(s.midMarks).forEach((name) =>
+        uploadedSubjectNames.add(norm(name)),
+      );
+    }
+  });
+
   return baseData.map((student) => {
     const uploaded = findUploaded(student);
-    if (!uploaded || !uploaded.midMarks) return student;
 
+    // ── Student NOT found in the uploaded mid file ────────────────────
+    // Mark every subject that appeared in the upload as NA (both mid & final).
+    if (!uploaded || !uploaded.midMarks) {
+      if (!uploadedSubjectNames.size) return student; // no upload yet — leave unchanged
+
+      const markedSubjects = (student.subjects || []).map((subj) => {
+        const subjectName = norm(
+          subj?.subject ??
+            subj?.label ??
+            subj?.name ??
+            subj?.subjectName ??
+            subj?.title ??
+            "",
+        );
+
+        if (!subjectName) return subj;
+
+        // Only apply NA for subjects that actually exist in the uploaded file
+        if (!uploadedSubjectNames.has(subjectName)) return subj;
+
+        return {
+          ...subj,
+          mid: "NA",
+          final: "NA",
+        };
+      });
+
+      return { ...student, subjects: markedSubjects };
+    }
+
+    // ── Student IS found in the uploaded mid file ──────────────────────
     const uploadedMidMap = new Map(
       Object.entries(uploaded.midMarks).map(([subjectName, mark]) => [
         norm(subjectName),
@@ -109,17 +199,19 @@ export function mergeMidMarksData(baseData, uploadedData) {
 
       if (!subjectName) return subj;
 
-      // ✅ Exact match only — works for both plain subjects and
-      // "<Subject> - OSPE" entries, since uploadedMidMap keys are the exact
-      // normalized subject names straight from the sheet's header row. No
-      // cross-contamination risk because the keys are distinct strings.
       const midValue = uploadedMidMap.get(subjectName);
 
-      if (midValue === undefined) return subj;
+      if (midValue === undefined) {
+        // Subject is in the upload header but this student has no score → NA
+        if (uploadedSubjectNames.has(subjectName)) {
+          return { ...subj, mid: "NA", final: "NA" };
+        }
+        return subj;
+      }
 
       return {
         ...subj,
-        mid: midValue !== null ? midValue : subj.mid,
+        mid: midValue !== null ? midValue : "NA",
       };
     });
 
@@ -380,26 +472,52 @@ export function mergeFinalMarksData(baseData, uploadedData, selectedSubject) {
     const reg = norm(s.registration).replace(/\D/g, "");
     if (reg) byRegistration.set(reg, s);
 
-    const name = norm(s.name);
-    const father = norm(s.fatherName);
+    const name = norm(s.name ?? "");
+    const father = norm(s.fatherName ?? "");
     if (name && father) byNameFather.set(`${name}|${father}`, s);
     if (name) byName.set(name, s);
   });
 
+  // ── Name-similarity helper (same as mid merge) ────────────────────────
+  const namesSimilar = (a, b) => {
+    const wordsA = norm(a ?? "").split(/\s+/).filter((w) => w.length > 2);
+    const wordsB = norm(b ?? "").split(/\s+/).filter((w) => w.length > 2);
+    if (!wordsA.length || !wordsB.length) return true;
+    return wordsA.some((wa) => wordsB.some((wb) => wa === wb || wa.startsWith(wb) || wb.startsWith(wa)));
+  };
+
+  const isRealMatch = (candidate, student) => {
+    return (
+      namesSimilar(candidate.name, student.name ?? "") ||
+      namesSimilar(candidate.fatherName, student.fatherName ?? "")
+    );
+  };
+
   // ── Helper: find uploaded row for a base student ──────────────────────
   const findUploaded = (student) => {
+    // 1. Roll number — verify name to avoid false hits from colliding roll digits
     const roll = norm(student.rollNumber ?? "").replace(/\D/g, "");
-    if (roll && byRollNo.has(roll)) return byRollNo.get(roll);
+    if (roll && byRollNo.has(roll)) {
+      const candidate = byRollNo.get(roll);
+      if (isRealMatch(candidate, student)) return candidate;
+      // Roll matched but completely different person → skip
+    }
 
+    // 2. Registration — verify name too
     const reg = norm(student.registration ?? "").replace(/\D/g, "");
-    if (reg && byRegistration.has(reg)) return byRegistration.get(reg);
+    if (reg && byRegistration.has(reg)) {
+      const candidate = byRegistration.get(reg);
+      if (isRealMatch(candidate, student)) return candidate;
+    }
 
+    // 3. Exact name + father combo
     const name = norm(student.name ?? "");
     const father = norm(student.fatherName ?? "");
     if (name && father && byNameFather.has(`${name}|${father}`)) {
       return byNameFather.get(`${name}|${father}`);
     }
 
+    // 4. Name only (last resort)
     if (name && byName.has(name)) return byName.get(name);
 
     return null;
@@ -413,7 +531,51 @@ export function mergeFinalMarksData(baseData, uploadedData, selectedSubject) {
 
     if (!uploaded) {
       noMatchCount++;
-      return student; // no uploaded row — leave unchanged
+      // Student is NOT in this final marks file.
+      // • If mid === "NA" → absent from mid, so final must be "NA" too.
+      // • If final is blank ("") → they haven't been given a final yet → "NA".
+      // • If final already has a real numeric value from a previous upload → keep it.
+      const subjects = student.subjects || [];
+      const updatedSubjects = subjects.map((subj) => {
+        const subjectName = normSubject(
+          subj?.subject ??
+            subj?.label ??
+            subj?.name ??
+            subj?.subjectName ??
+            subj?.title ??
+            "",
+        );
+        if (!subjectName) return subj;
+
+        const subjectIsOspe = /-\s*ospe\s*$/i.test(subjectName);
+        if (isOspeTarget !== subjectIsOspe) return subj;
+
+        const matches =
+          subjectName === targetSubject ||
+          subjectName.startsWith(targetSubject) ||
+          targetSubject.startsWith(subjectName);
+
+        if (!matches) return subj;
+
+        // If mid is "NA" → student was absent from mid → final must also be "NA"
+        if (String(subj.mid ?? "").toUpperCase() === "NA") {
+          return { ...subj, final: "NA" };
+        }
+
+        // If final already has a valid value from a previous upload → keep it
+        const hasExistingFinal =
+          subj.final !== "" &&
+          subj.final !== null &&
+          subj.final !== undefined &&
+          String(subj.final).toUpperCase() !== "NA";
+
+        if (hasExistingFinal) return subj;
+
+        // Final is blank → student is absent from this exam → mark NA
+        return { ...subj, final: "NA" };
+      });
+
+      return { ...student, subjects: updatedSubjects };
     }
 
     // Check if this student has the target subject in their subjects list
@@ -450,8 +612,16 @@ export function mergeFinalMarksData(baseData, uploadedData, selectedSubject) {
     }
 
     // ✅ Only update `final` for the matched subject
+    // ✅ Only update `final` for the matched subject, but ONLY if mid is not "NA".
+    // Students absent from the mid exam (mid === "NA") must not receive final marks.
     const updatedSubjects = subjects.map((subj, idx) => {
       if (idx !== subjectIndex) return subj;
+
+      // If mid is "NA", the student was absent from mid — block final marks
+      if (String(subj.mid ?? "").toUpperCase() === "NA") {
+        return { ...subj, final: "NA" };
+      }
+
       return {
         ...subj,
         final:

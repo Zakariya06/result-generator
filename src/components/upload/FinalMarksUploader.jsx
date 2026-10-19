@@ -18,16 +18,22 @@ export default function FinalMarksUploader({
   // Plain subject names only (OSPE handled via the toggle, not as a separate dropdown row)
   const baseSubjects = subjects.map((s) => s.subject);
 
-  const finalIsSet = (val) =>
-    val !== undefined && val !== null && val !== "" && val !== "-";
+  // A subject's final is considered "uploaded" only when it has a real numeric
+  // value. "NA" is automatically set for absent students (not a real upload),
+  // "" and "-" are the blank/pending placeholders.
+  const finalIsUploaded = (val) => {
+    if (val === undefined || val === null || val === "" || val === "-") return false;
+    if (String(val).toUpperCase() === "NA") return false; // absent marker, not a real upload
+    return !isNaN(parseFloat(String(val))); // must be a real number
+  };
 
-  // Track which (subject) and which (subject - OSPE) already have final marks
+  // Track which (subject) and which (subject - OSPE) already have real final marks
   const uploadedPlain = new Set();
   const uploadedOspe = new Set();
   (studentsData || []).forEach((student) => {
     (student.subjects || []).forEach((subj) => {
       const name = norm(subj?.subject ?? subj?.label ?? subj?.name ?? "");
-      if (!finalIsSet(subj?.final)) return;
+      if (!finalIsUploaded(subj?.final)) return;
       if (name.endsWith("- ospe"))
         uploadedOspe.add(name.replace(/\s*-\s*ospe$/, ""));
       else uploadedPlain.add(name);
@@ -58,25 +64,25 @@ export default function FinalMarksUploader({
         <div className="d-flex gap-2">
           <button
             type="button"
-            className={`btn btn-sm ${mode === "online" ? "btn-primary" : "btn-outline-secondary"}`}
+            className={`btn-sc btn-sc-sm ${mode === "online" ? "btn-sc-primary" : "btn-sc-outline"}`}
             onClick={() => setMode("online")}
           >
-            Online
+            Online Sheet
           </button>
           <button
             type="button"
-            className={`btn btn-sm ${mode === "physical" ? "btn-primary" : "btn-outline-secondary"}`}
+            className={`btn-sc btn-sc-sm ${mode === "physical" ? "btn-sc-primary" : "btn-sc-outline"}`}
             onClick={() => setMode("physical")}
           >
-            Physical
+            Physical Entry
           </button>
         </div>
       </div>
 
       {/* ── OSPE toggle ─────────────────────────────────────────────── */}
-      <div className="form-check">
+      <div className="form-check p-2 rounded-2 border bg-light">
         <input
-          className="form-check-input"
+          className="form-check-input ms-0 me-2"
           type="checkbox"
           id="ospeToggle"
           checked={uploadOspe}
@@ -85,8 +91,8 @@ export default function FinalMarksUploader({
             setSelectedSubject("");
           }}
         />
-        <label className="form-check-label" htmlFor="ospeToggle">
-          This is an OSPE marks upload (separate sheet)
+        <label className="form-check-label fw-semibold" htmlFor="ospeToggle" style={{ fontSize: "13px" }}>
+          This is an OSPE / Practical evaluation sheet
         </label>
       </div>
 
@@ -99,18 +105,17 @@ export default function FinalMarksUploader({
         <div className="fmu-select-box">
           <select
             id="subjectSelect"
-            className="fmu-select"
+            className="sc-select w-100"
             value={selectedSubject}
             onChange={(e) => setSelectedSubject(e.target.value)}
           >
             <option value="">— Choose a subject —</option>
             {pendingSubjects.map((name) => (
               <option key={name} value={name} disabled={isDisabled(name)}>
-                {name} {isDisabled(name) ? "✅ Uploaded" : ""}
+                {name} {isDisabled(name) ? "✓ Uploaded" : ""}
               </option>
             ))}
           </select>
-          <span className="fmu-chevron">▾</span>
         </div>
       </div>
 

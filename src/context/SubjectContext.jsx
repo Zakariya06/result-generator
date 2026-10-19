@@ -7,6 +7,7 @@ import {
   getSubjectsFromDB,
   clearSubjectsDB,
 } from "../db/studentDB";
+import { ensureSubjectEntries } from "../utils/excelTransform";
 
 export const SubjectContext = createContext();
 export const useSubject = () => useContext(SubjectContext);
@@ -36,8 +37,13 @@ export const SubjectContextProvider = ({ children }) => {
           getSubjectsFromDB(),
         ]);
 
-        if (students?.length) setStudentsData(students);
         if (savedSubjects?.length) setSubjects(savedSubjects);
+        if (students?.length) {
+          const withSubjects = savedSubjects?.length
+            ? ensureSubjectEntries(students, savedSubjects)
+            : students;
+          setStudentsData(withSubjects);
+        }
       } catch (err) {
         console.error("Failed to load data from IndexedDB:", err);
       }
@@ -66,9 +72,15 @@ export const SubjectContextProvider = ({ children }) => {
 
   // ── Helpers ─────────────────────────────────────────────────────────────
 
-  const saveSubjects = (data) => setSubjects(data);
+  const saveSubjects = (data) => {
+    setSubjects(data);
+    setStudentsData((prev) => (prev?.length ? ensureSubjectEntries(prev, data) : prev));
+  };
 
-  const saveAllStudentData = (data) => setStudentsData(data);
+  const saveAllStudentData = (data) => {
+    const withSubjects = subjects?.length ? ensureSubjectEntries(data, subjects) : data;
+    setStudentsData(withSubjects);
+  };
 
   const addData = (data) => {
     const items = Array.isArray(data) ? data : [data];
@@ -86,18 +98,21 @@ export const SubjectContextProvider = ({ children }) => {
         map.set(key, old ? { ...old, ...s } : s);
       }
 
-      return Array.from(map.values());
+      const merged = Array.from(map.values());
+      return subjects?.length ? ensureSubjectEntries(merged, subjects) : merged;
     });
   };
 
   const clearAllStudents = async () => {
     setStudentsData([]);
+    localStorage.removeItem("uploadStep");
     await clearStudentsDB();
   };
 
   const clearAll = async () => {
     setStudentsData([]);
     setSubjects([]);
+    localStorage.removeItem("uploadStep");
     await Promise.all([clearStudentsDB(), clearSubjectsDB()]);
   };
 

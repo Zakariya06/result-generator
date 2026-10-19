@@ -20,6 +20,14 @@ import {
 } from "../utils/marksSheetFormater";
 import FinalMarksUploader from "../components/upload/FinalMarksUploader";
 import StudentFormModal from "../components/modals/StudentFormModal";
+import {
+  LuUpload,
+  LuFilePlus,
+  LuPlus,
+  LuRotateCcw,
+  LuFileSpreadsheet,
+  LuSparkles,
+} from "react-icons/lu";
 
 export default function UploadFiles() {
   const [file1Data, setFile1Data] = useState(null);
@@ -128,7 +136,7 @@ export default function UploadFiles() {
     alert("Add successfully");
   };
 
-  const handleAddReaAppearStudentData = (addFiles) => {
+  const handleAddReAppearStudentData = (addFiles) => {
     startTransition(() => {
       const mapped = transformStudentListFiles(addFiles);
       const mappedItems = Array.isArray(mapped) ? mapped : [mapped];
@@ -280,80 +288,88 @@ export default function UploadFiles() {
 
   return (
     <>
-      <div className="tableHeader">
-        <div className="buttonWrapper d-flex align-items-center gap-2">
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3 pb-3 border-bottom">
+        <div className="d-flex flex-wrap align-items-center gap-2">
           {!hasStudentsData && (
             <button
-              className="btn btn-primary"
+              className="btn-sc btn-sc-primary"
               onClick={handleUploadOspeStudentData}
             >
-              Upload Students Data
+              <LuUpload size={16} />
+              <span>Upload Students Data</span>
             </button>
           )}
 
           {hasStudentsData && !hasReAppearData && (
             <button
-              className="btn btn-danger"
+              className="btn-sc btn-sc-dark"
               onClick={HandleReAppearStudentData}
             >
-              Upload Re Appear Data
+              <LuFileSpreadsheet size={16} />
+              <span>Upload Re-Appear Data</span>
             </button>
           )}
 
           {hasStudentsData && hasReAppearData && (
             <>
               <button
-                className="btn btn-primary"
+                className="btn-sc btn-sc-outline btn-sc-sm"
                 onClick={handleAddUploadOspeStudentData}
+                title="Append more regular students"
               >
-                Add More Students Data
+                <LuPlus size={14} />
+                <span>Add More Students</span>
               </button>
               <button
-                className="btn btn-danger"
+                className="btn-sc btn-sc-outline btn-sc-sm"
                 onClick={HandleAddReAppearStudentData}
+                title="Append more re-appear students"
               >
-                Add More Re Appear Data
+                <LuPlus size={14} />
+                <span>Add More Re-Appear</span>
               </button>
             </>
           )}
 
-          {hasStudentsData && (
-            <button className="btn btn-warning" onClick={handleClear}>
-              Clear
-            </button>
-          )}
-        </div>
-
-        <div className="d-flex align-items-center gap-2">
           {hasStudentsData && hasReAppearData && (
-            <>
+            <div className="d-flex align-items-center gap-2 ms-sm-2">
               <button
-                className="btn btn-success text-white"
+                className="btn-sc btn-sc-secondary btn-sc-sm"
                 onClick={handleUploadMidMarks}
               >
-                Upload Mid Marks
+                <LuFilePlus size={14} className="text-primary" />
+                <span>Upload Mid Marks</span>
               </button>
               <button
-                className="btn btn-info text-white"
+                className="btn-sc btn-sc-secondary btn-sc-sm"
                 onClick={handleUploadFinalMarks}
               >
-                Upload Final Marks
+                <LuSparkles size={14} className="text-primary" />
+                <span>Upload Final Marks</span>
               </button>
-            </>
+            </div>
+          )}
+
+          {hasStudentsData && (
+            <button
+              className="btn-sc btn-sc-ghost btn-sc-sm text-muted ms-auto"
+              onClick={handleClear}
+              title="Reset current session uploads"
+            >
+              <LuRotateCcw size={14} />
+              <span>Reset</span>
+            </button>
           )}
         </div>
 
-        <div className="d-flex align-items-center gap-3">
-          <p className="countText mb-0">
-            Total Students: ({studentsData?.length ?? 0})
-          </p>
+        <div className="d-flex align-items-center gap-2 ms-auto">
           {hasStudentsData && (
             <button
-              className="btn btn-outline-primary d-flex align-items-center gap-1"
+              className="btn-sc btn-sc-primary btn-sc-sm"
               onClick={handleAddNewRecord}
             >
-              <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>+</span> Add
-              Record
+              <LuPlus size={15} />
+              <span>Add Record</span>
             </button>
           )}
         </div>

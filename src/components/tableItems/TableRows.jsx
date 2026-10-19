@@ -21,8 +21,26 @@ const TableRows = (props) => {
     return [l];
   };
 
-  console.log("All Students Data :::", processedStudents);
-  console.log("All Columns Data :::", columns);
+  const matchSubjectForColumn = (subjectsList = [], colItem) => {
+    const keys = possibleKeysForColumn(colItem.label);
+    const colNorm = norm(colItem.label);
+    const isColOspe = colNorm.includes("ospe");
+
+    return subjectsList.find((s) => {
+      if (!s) return false;
+      const sName = norm(s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "");
+      if (!sName) return false;
+      const isSubjOspe = sName.includes("ospe");
+
+      if (isColOspe !== isSubjOspe) return false;
+      if (keys.includes(sName)) return true;
+      if (sName === colNorm || sName.startsWith(colNorm) || colNorm.startsWith(sName)) {
+        return true;
+      }
+
+      return false;
+    });
+  };
 
   return (
     <>
@@ -34,18 +52,22 @@ const TableRows = (props) => {
           <td>Father Name</td>
           <td>REG-2024</td>
           <td>Discipline Name</td>
-          <td>Regular / Re-appear</td>
+          <td>
+            <span className="badge-regular">Regular</span>
+          </td>
           <td>KMU IHS-Swat</td>
 
           {columns.map((item, i) => (
             <React.Fragment key={i}>
-              <td>-</td>
-              <td>-</td>
-              <td>-</td>
+              <td className="text-center">-</td>
+              <td className="text-center">-</td>
+              <td className="text-center">-</td>
             </React.Fragment>
           ))}
-          <td style={{ textAlign: "center" }}>P</td>
-          <td style={{ textAlign: "center" }}>-</td>
+          <td className="text-center">
+            <span className="text-muted fw-bold">-</span>
+          </td>
+          <td className="text-center">-</td>
         </tr>
       ) : (
         processedStudents.map((student, index) => {
@@ -54,20 +76,15 @@ const TableRows = (props) => {
           // ── Status Calculation Variables ──────────────────────────────
           let totalApplicableSubjects = 0;
           let failedSubjects = 0;
+          let hasAnyMarksEntered = false;
 
           const subjectCells = columns.map((item, i) => {
-            const keys = possibleKeysForColumn(item.label);
-
-            const matchedSubject = (student.subjects || []).find((s) => {
-              if (!s) return false;
-              const subjectName = norm(
-                s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title,
-              );
-              return keys.includes(subjectName);
-            });
+            const matchedSubject = matchSubjectForColumn(student.subjects || [], item);
 
             const computeTotal = (subj) => {
               if (!subj) return "-";
+              // If either mid or final is explicitly "NA", the total is also NA
+              if (String(subj.mid ?? "").toUpperCase() === "NA" || String(subj.final ?? "").toUpperCase() === "NA") return "NA";
               const mid = parseFloat(subj.mid);
               const final = parseFloat(subj.final);
               if (!isNaN(mid) && !isNaN(final)) return mid + final;
@@ -75,16 +92,28 @@ const TableRows = (props) => {
             };
 
             if (!matchedSubject) {
+              // Regular candidates take all subjects, so display "-" until marks are imported
+              if (!student.isRA) {
+                return (
+                  <React.Fragment key={i}>
+                    <td className="text-center text-muted">-</td>
+                    <td className="text-center text-muted">-</td>
+                    <td className="text-center text-muted">-</td>
+                  </React.Fragment>
+                );
+              }
+
+              // Re-appear candidates only appear in their registered subjects
               return (
                 <React.Fragment key={i}>
                   <td className="text-center">
-                    <span style={{ color: "red" }}>NA</span>
+                    <span className="badge-na">NA</span>
                   </td>
                   <td className="text-center">
-                    <span style={{ color: "red" }}>NA</span>
+                    <span className="badge-na">NA</span>
                   </td>
                   <td className="text-center">
-                    <span style={{ color: "red" }}>NA</span>
+                    <span className="badge-na">NA</span>
                   </td>
                 </React.Fragment>
               );
@@ -108,53 +137,47 @@ const TableRows = (props) => {
                 ? obtainedTotal
                 : parseFloat(obtainedTotal);
 
-            totalApplicableSubjects++;
-
-            // If marks are missing (NaN) or less than 50%, it's a fail
-            if (
-              maxTotal > 0 &&
-              (isNaN(obtainedMarks) || obtainedMarks < maxTotal * 0.5)
-            ) {
-              failedSubjects++;
+            const isMarksUploaded = !isNaN(obtainedMarks);
+            if (isMarksUploaded) {
+              hasAnyMarksEntered = true;
+              totalApplicableSubjects++;
+              if (maxTotal > 0 && obtainedMarks < maxTotal * 0.5) {
+                failedSubjects++;
+              }
             }
+
+            // ── Helper to render a cell value (number, "-", or "NA" badge) ──
+            const renderCell = (value, extraClass = "") => {
+              if (String(value ?? "").toUpperCase() === "NA") {
+                return (
+                  <td className={`text-center ${extraClass}`}>
+                    <span className="badge-na">NA</span>
+                  </td>
+                );
+              }
+              const display =
+                value !== "" && value !== null && value !== undefined
+                  ? value
+                  : "-";
+              return (
+                <td className={`text-center ${extraClass}`}>{display}</td>
+              );
+            };
+
+            const totalDisplay = computeTotal(matchedSubject);
 
             return (
               <React.Fragment key={i}>
-                <td
-                  className="text-center"
-                  style={
-                    midExceeds ? { backgroundColor: "red", color: "white" } : {}
-                  }
-                >
-                  {matchedSubject.mid !== "" &&
-                  matchedSubject.mid !== null &&
-                  matchedSubject.mid !== undefined
-                    ? matchedSubject.mid
-                    : "-"}
-                </td>
-
-                <td
-                  className="text-center"
-                  style={
-                    finalExceeds
-                      ? { backgroundColor: "red", color: "white" }
-                      : {}
-                  }
-                >
-                  {matchedSubject.final !== "" &&
-                  matchedSubject.final !== null &&
-                  matchedSubject.final !== undefined
-                    ? matchedSubject.final
-                    : "-"}
-                </td>
-
-                <td className="text-center">{computeTotal(matchedSubject)}</td>
+                {renderCell(matchedSubject.mid, midExceeds ? "cell-exceeds" : "")}
+                {renderCell(matchedSubject.final, finalExceeds ? "cell-exceeds" : "")}
+                {renderCell(totalDisplay)}
               </React.Fragment>
             );
           });
 
           // ── Determine Final Status ────────────────────────────────────
           const isFailed =
+            hasAnyMarksEntered &&
             totalApplicableSubjects > 0 &&
             failedSubjects >= Math.ceil(totalApplicableSubjects / 2);
 
@@ -170,20 +193,27 @@ const TableRows = (props) => {
               <td>{student.fatherName}</td>
               <td>{student.registration}</td>
               <td>{student.Discipline}</td>
-              <td>{student.isRA ? "Re-appear" : "Regular"}</td>
+              <td>
+                <span className={student.isRA ? "badge-reappear" : "badge-regular"}>
+                  {student.isRA ? "Re-appear" : "Regular"}
+                </span>
+              </td>
               <td>{student.institute}</td>
 
               {subjectCells}
 
-              <td
-                style={{
-                  textAlign: "center",
-                  fontWeight: "bold",
-                  backgroundColor: isFailed ? "red" : "green",
-                  color: "white",
-                }}
-              >
-                {isFailed ? "NP" : "P"}
+              <td className="text-center">
+                {!hasAnyMarksEntered ? (
+                  <span className="text-muted fw-semibold">-</span>
+                ) : (
+                  <span
+                    className={`status-pill ${
+                      isFailed ? "status-failed" : "status-passed"
+                    }`}
+                  >
+                    {isFailed ? "NP" : "P"}
+                  </span>
+                )}
               </td>
 
               {/* ── ACTION COLUMN ──────────────────────────────────────── */}

@@ -7,6 +7,7 @@ import ProtectedRoute from "./hoc/ProtectedRoute";
 import PublicRoute from "./hoc/PublicRoute";
 import UploadFiles from "./pages/UploadFiles";
 import MarksSheet from "./pages/SheetPage";
+import OmrPage from "./pages/OmrPage";
 
 function App() {
   return (
@@ -51,6 +52,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <MarksSheet />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/omr"
+            element={
+              <ProtectedRoute>
+                <OmrPage />
               </ProtectedRoute>
             }
           />
