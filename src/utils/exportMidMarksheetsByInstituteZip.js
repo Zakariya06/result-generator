@@ -1,79 +1,53 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import JSZip from "jszip";
+import { buildColumns, processStudents } from "./exportMarksSheetExcel";
 
 const normalize = (v) => String(v ?? "").trim();
-const upper = (v) => normalize(v).toUpperCase();
 const norm = (v) =>
   String(v ?? "")
     .trim()
     .toLowerCase();
 
-const hasRA = (rollNumber) => upper(rollNumber).includes("RA");
-
-const parseRollNumber = (value) => {
-  if (!value) return null;
-  const numeric = Number(String(value).replace(/[^0-9]/g, ""));
-  return Number.isFinite(numeric) ? numeric : null;
-};
-
-// ── UPDATED buildColumns ──────────────────────────────────────────────
-const buildColumns = (subjects) =>
-  (subjects || []).flatMap((s) => {
-    const base = [
-      {
-        label: s.subject,
-        key: s.subject,
-        maxMid: Number(s.maxMid) || 0,
-        maxFinal: Number(s.maxFinal) || 0,
-      },
-    ];
-    if (s.ospe) {
-      base.push({
-        label: `${s.subject} - OSPE`,
-        key: `${s.subject}-ospe`,
-        maxMid: (Number(s.ospeMaxMid) ?? Number(s.maxMid)) || 0,
-        maxFinal: (Number(s.ospeMaxFinal) ?? Number(s.maxFinal)) || 0,
-      });
-    }
-    return base;
+function findTheoryEntry(subjects, subjectBase) {
+  const baseNorm = norm(subjectBase);
+  return (subjects || []).find((s) => {
+    if (!s) return false;
+    const sName = norm(
+      s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+    );
+    return sName === baseNorm && !sName.includes("ospe");
   });
-// ────────────────────────────────────────────────────────────────────────
+}
+
+function findOspeEntry(subjects, subjectBase) {
+  const baseNorm = norm(subjectBase);
+  return (subjects || []).find((s) => {
+    if (!s) return false;
+    const sName = norm(
+      s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+    );
+    return (
+      sName.includes("ospe") &&
+      (sName.includes(baseNorm) ||
+        sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim() === baseNorm)
+    );
+  });
+}
 
 const possibleKeysForColumn = (label) => {
   const l = norm(label);
-  if (l.endsWith("- ospe") || l.includes(" - ospe")) {
+  if (l.endsWith("+ ospe") || l.includes("+ ospe")) {
+    const base = l.replace(/\s*\+\s*ospe\s*$/, "").trim();
+    return [l, `${base} + ospe`, `${base}+ospe`, `${base} - ospe`, `${base}-ospe`];
+  }
+  if (l.endsWith("- ospe") || l.includes("- ospe")) {
     const base = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-    return [l, `${base} - ospe`, `${base}-ospe`];
+    return [l, `${base} - ospe`, `${base}-ospe`, `${base} + ospe`, `${base}+ospe`];
   }
   return [l];
 };
 
-export const processStudents = (studentsData) => {
-  const sorted = [...(studentsData || [])].sort((a, b) => {
-    const aRoll = parseRollNumber(a?.rollNumber);
-    const bRoll = parseRollNumber(b?.rollNumber);
-    if (aRoll !== null && bRoll !== null) return aRoll - bRoll;
-    if (aRoll !== null) return -1;
-    if (bRoll !== null) return 1;
-    return String(a?.rollNumber || "").localeCompare(
-      String(b?.rollNumber || ""),
-    );
-  });
-
-  let serial = 0;
-  let previousGroupKey = null;
-  return sorted.map((student) => {
-    const isRAFlag = hasRA(student.rollNumber);
-    const institute = upper(student?.institute);
-    const groupKey = `${institute}__${isRAFlag ? "RA" : "NON_RA"}`;
-    serial = previousGroupKey === groupKey ? serial + 1 : 1;
-    previousGroupKey = groupKey;
-    return { ...student, serial, isRA: isRAFlag };
-  });
-};
-
-// ── buildRowValuesMidOnly ─────────────────────────────────────────────
 function buildRowValuesMidOnly(student, columns) {
   const base = [
     student.serial ?? "",
@@ -90,6 +64,40 @@ function buildRowValuesMidOnly(student, columns) {
   const exceedFlags = [];
 
   columns.forEach((col) => {
+    if (col.isCombined) {
+      const theorySubj = findTheoryEntry(student.subjects, col.subjectBase);
+      const ospeSubj = findOspeEntry(student.subjects, col.subjectBase);
+
+      const isTheoryNA =
+        theorySubj &&
+        (String(theorySubj.mid ?? "").toUpperCase() === "NA" ||
+          String(theorySubj.final ?? "").toUpperCase() === "NA");
+      const isOspeNA =
+        ospeSubj &&
+        (String(ospeSubj.mid ?? "").toUpperCase() === "NA" ||
+          String(ospeSubj.final ?? "").toUpperCase() === "NA");
+
+      if (isTheoryNA || isOspeNA) {
+        marksCells.push("NA");
+        exceedFlags.push(false);
+        return;
+      }
+
+      if (!theorySubj && !ospeSubj) {
+        marksCells.push("NA");
+        exceedFlags.push(false);
+        return;
+      }
+
+      const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
+      const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
+      const combinedMid = (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
+      const midExceeds = col.maxMid > 0 && combinedMid > col.maxMid;
+      marksCells.push(combinedMid);
+      exceedFlags.push(midExceeds);
+      return;
+    }
+
     const keys = possibleKeysForColumn(col.label);
 
     const matchedSubject = (
@@ -97,7 +105,7 @@ function buildRowValuesMidOnly(student, columns) {
     ).find((s) => {
       if (!s) return false;
       const subjectName = norm(
-        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "",
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
       );
       return keys.includes(subjectName);
     });
@@ -178,7 +186,6 @@ function styleDataRowMidOnly(ws, rowNumber, isRA, borderAll, exceedFlags) {
   });
 }
 
-// ── createMidOnlyWorkbook ─────────────────────────────────────────────
 async function createMidOnlyWorkbook({
   subjects,
   studentsData,
@@ -261,6 +268,7 @@ async function createMidOnlyWorkbook({
 
   let startCol = 9;
   columns.forEach((col) => {
+    ws.mergeCells(headerRow1, startCol, headerRow2, startCol);
     const labelCell = ws.getCell(headerRow1, startCol);
     labelCell.value = normalize(col.label);
     labelCell.font = { bold: true };
@@ -269,11 +277,6 @@ async function createMidOnlyWorkbook({
       horizontal: "center",
       wrapText: true,
     };
-
-    const midCell = ws.getCell(headerRow2, startCol);
-    midCell.value = "Mid";
-    midCell.font = { bold: true };
-    midCell.alignment = { vertical: "middle", horizontal: "center" };
 
     startCol += 1;
   });
@@ -299,6 +302,7 @@ async function createMidOnlyWorkbook({
     });
   });
 
+  // Data rows
   const firstDataRow = 6;
   const students =
     processedStudents.length > 0
@@ -326,7 +330,7 @@ async function createMidOnlyWorkbook({
       excelRowIndex,
       student.isRA,
       borderAll,
-      exceedFlags,
+      exceedFlags
     );
   });
 

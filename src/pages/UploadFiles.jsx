@@ -152,15 +152,34 @@ export default function UploadFiles() {
   };
 
   const handleUploadMidMarksData = (allFiles) => {
+    console.group("🚀 handleUploadMidMarksData triggered");
+    console.log("Raw files uploaded:", allFiles);
+    console.log("Current subjects in context:", subjects);
+    console.log("Current students in context:", studentsData);
+
     const base = ensureSubjectEntries(studentsData, subjects);
     const formatted = formatMidMarks(allFiles.map((f) => f.data));
     setMidMarksData(formatted);
+
+    console.log("Parsed mid marks count:", formatted?.length);
+    console.log("Base students to merge into:", base?.length);
+
     if (base?.length && formatted?.length) {
       const merged = mergeMidMarksData(base, formatted);
+      console.log("Merged students result:", merged);
       saveAllStudentData(merged);
+      alert(`Mid marks uploaded successfully! Processed ${formatted.length} students.`);
+    } else {
+      console.warn("Could not merge mid marks: base or formatted data is empty.", {
+        baseCount: base?.length,
+        formattedCount: formatted?.length,
+      });
+      alert(
+        `Uploaded mid marks file had ${formatted?.length || 0} student rows and found ${base?.length || 0} existing students in the system. Check console for details.`
+      );
     }
+    console.groupEnd();
     setShow(false);
-    alert("Mid marks uploaded successfully.");
   };
 
   const handleUploadFinalMarksData = (

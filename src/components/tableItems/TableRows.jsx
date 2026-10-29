@@ -1,45 +1,105 @@
-import React from "react"; 
+import React from "react";
 import { useSubject } from "../../context/SubjectContext";
 
 const TableRows = (props) => {
   const { processedStudents, columns } = props;
-  const { setEditingStudent } = useSubject();  
+  const { setEditingStudent } = useSubject();
 
   const norm = (v) =>
     String(v ?? "")
       .trim()
       .toLowerCase();
 
-  const possibleKeysForColumn = (label) => {
-    const l = norm(label);
-
-    if (l.endsWith("- ospe") || l.includes(" - ospe")) {
-      const base = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-      return [l, `${base} - ospe`, `${base}-ospe`];
-    }
-
-    return [l];
-  };
-
+  // Helper to match a student subject item with a column definition
   const matchSubjectForColumn = (subjectsList = [], colItem) => {
-    const keys = possibleKeysForColumn(colItem.label);
-    const colNorm = norm(colItem.label);
-    const isColOspe = colNorm.includes("ospe");
+    const colLabelNorm = norm(colItem.label);
+    const colBaseNorm = norm(colItem.subjectBase || colItem.label);
+    const isColOspe = colItem.isOspeSeparated || colLabelNorm.includes("ospe");
 
     return subjectsList.find((s) => {
       if (!s) return false;
-      const sName = norm(s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "");
+      const sName = norm(
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+      );
       if (!sName) return false;
       const isSubjOspe = sName.includes("ospe");
 
+      // 1. Differentiate between OSPE column and Theory column
       if (isColOspe !== isSubjOspe) return false;
-      if (keys.includes(sName)) return true;
-      if (sName === colNorm || sName.startsWith(colNorm) || colNorm.startsWith(sName)) {
-        return true;
-      }
+
+      // 2. Direct string equality check
+      if (sName === colLabelNorm) return true;
+
+      // 3. Clean string match removing +/- ospe
+      const sClean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+      const colClean = colLabelNorm.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+
+      if (sClean === colClean || sClean === colBaseNorm) return true;
+      if (sName === colBaseNorm) return true;
 
       return false;
     });
+  };
+
+  // Find theory subject for a combined column
+  const findTheorySubject = (subjectsList = [], subjectBase) => {
+    const baseNorm = norm(subjectBase);
+    return subjectsList.find((s) => {
+      if (!s) return false;
+      const sName = norm(
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+      );
+      if (!sName || sName.includes("ospe")) return false;
+      return (
+        sName === baseNorm ||
+        sName.startsWith(baseNorm) ||
+        baseNorm.startsWith(sName)
+      );
+    });
+  };
+
+  // Find OSPE subject for a combined column
+  const findOspeSubject = (subjectsList = [], subjectBase) => {
+    const baseNorm = norm(subjectBase);
+    return subjectsList.find((s) => {
+      if (!s) return false;
+      const sName = norm(
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+      );
+      if (!sName || !sName.includes("ospe")) return false;
+      const clean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+      return (
+        clean === baseNorm ||
+        clean.startsWith(baseNorm) ||
+        baseNorm.startsWith(clean)
+      );
+    });
+  };
+
+  const computeTotal = (subj) => {
+    if (!subj) return "-";
+    if (
+      String(subj.mid ?? "").toUpperCase() === "NA" ||
+      String(subj.final ?? "").toUpperCase() === "NA"
+    )
+      return "NA";
+    const mid = parseFloat(subj.mid);
+    const final = parseFloat(subj.final);
+    if (!isNaN(mid) && !isNaN(final)) return mid + final;
+    return subj.total ?? "-";
+  };
+
+  const renderCell = (value, extraClass = "") => {
+    if (String(value ?? "").toUpperCase() === "NA") {
+      return (
+        <td className={`text-center ${extraClass}`}>
+          <span className="badge-na">NA</span>
+        </td>
+      );
+    }
+    const display =
+      value !== "" && value !== null && value !== undefined ? value : "-";
+    return <td className={`text-center ${extraClass}`}>{display}</td>;
   };
 
   return (
@@ -73,26 +133,121 @@ const TableRows = (props) => {
         processedStudents.map((student, index) => {
           if (!student || typeof student !== "object") return null;
 
-          // ── Status Calculation Variables ──────────────────────────────
           let totalApplicableSubjects = 0;
           let failedSubjects = 0;
           let hasAnyMarksEntered = false;
 
           const subjectCells = columns.map((item, i) => {
-            const matchedSubject = matchSubjectForColumn(student.subjects || [], item);
+            // ── 1. COMBINED MODE COLUMN ──────────────────────────────────
+            if (item.isCombined) {
+              const theorySubj = findTheorySubject(
+                student.subjects || [],
+                item.subjectBase
+              );
+              const ospeSubj = findOspeSubject(
+                student.subjects || [],
+                item.subjectBase
+              );
 
-            const computeTotal = (subj) => {
-              if (!subj) return "-";
-              // If either mid or final is explicitly "NA", the total is also NA
-              if (String(subj.mid ?? "").toUpperCase() === "NA" || String(subj.final ?? "").toUpperCase() === "NA") return "NA";
-              const mid = parseFloat(subj.mid);
-              const final = parseFloat(subj.final);
-              if (!isNaN(mid) && !isNaN(final)) return mid + final;
-              return subj.total ?? "-";
-            };
+              const isTheoryNA =
+                theorySubj &&
+                (String(theorySubj.mid ?? "").toUpperCase() === "NA" ||
+                  String(theorySubj.final ?? "").toUpperCase() === "NA");
+              const isOspeNA =
+                ospeSubj &&
+                (String(ospeSubj.mid ?? "").toUpperCase() === "NA" ||
+                  String(ospeSubj.final ?? "").toUpperCase() === "NA");
+
+              if (!theorySubj && !ospeSubj) {
+                if (!student.isRA) {
+                  return (
+                    <React.Fragment key={i}>
+                      <td className="text-center text-muted">-</td>
+                      <td className="text-center text-muted">-</td>
+                      <td className="text-center text-muted">-</td>
+                    </React.Fragment>
+                  );
+                }
+                return (
+                  <React.Fragment key={i}>
+                    <td className="text-center">
+                      <span className="badge-na">NA</span>
+                    </td>
+                    <td className="text-center">
+                      <span className="badge-na">NA</span>
+                    </td>
+                    <td className="text-center">
+                      <span className="badge-na">NA</span>
+                    </td>
+                  </React.Fragment>
+                );
+              }
+
+              if (isTheoryNA || isOspeNA) {
+                return (
+                  <React.Fragment key={i}>
+                    <td className="text-center">
+                      <span className="badge-na">NA</span>
+                    </td>
+                    <td className="text-center">
+                      <span className="badge-na">NA</span>
+                    </td>
+                    <td className="text-center">
+                      <span className="badge-na">NA</span>
+                    </td>
+                  </React.Fragment>
+                );
+              }
+
+              const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
+              const tFinal = theorySubj ? parseFloat(theorySubj.final) : NaN;
+              const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
+              const oFinal = ospeSubj ? parseFloat(ospeSubj.final) : NaN;
+
+              const hasMid = !isNaN(tMid) || !isNaN(oMid);
+              const hasFinal = !isNaN(tFinal) || !isNaN(oFinal);
+
+              const combinedMid =
+                (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
+              const combinedFinal =
+                (!isNaN(tFinal) ? tFinal : 0) + (!isNaN(oFinal) ? oFinal : 0);
+              const combinedTotal = combinedMid + combinedFinal;
+
+              const maxTotal = item.maxMid + item.maxFinal;
+              if (hasMid || hasFinal) {
+                hasAnyMarksEntered = true;
+                totalApplicableSubjects++;
+                if (maxTotal > 0 && combinedTotal < maxTotal * 0.5) {
+                  failedSubjects++;
+                }
+              }
+
+              const midExceeds = item.maxMid > 0 && combinedMid > item.maxMid;
+              const finalExceeds =
+                item.maxFinal > 0 && combinedFinal > item.maxFinal;
+
+              return (
+                <React.Fragment key={i}>
+                  {renderCell(
+                    hasMid ? combinedMid : "-",
+                    midExceeds ? "cell-exceeds" : ""
+                  )}
+                  {renderCell(
+                    hasFinal ? combinedFinal : "-",
+                    finalExceeds ? "cell-exceeds" : ""
+                  )}
+                  {renderCell(hasMid || hasFinal ? combinedTotal : "-")}
+                </React.Fragment>
+              );
+            }
+
+            // ── 2. SEPARATED OR REGULAR COLUMN ───────────────────────────
+            const matchedSubject = matchSubjectForColumn(
+              student.subjects || [],
+              item
+            );
 
             if (!matchedSubject) {
-              // Regular candidates take all subjects, so display "-" until marks are imported
               if (!student.isRA) {
                 return (
                   <React.Fragment key={i}>
@@ -102,8 +257,6 @@ const TableRows = (props) => {
                   </React.Fragment>
                 );
               }
-
-              // Re-appear candidates only appear in their registered subjects
               return (
                 <React.Fragment key={i}>
                   <td className="text-center">
@@ -119,17 +272,14 @@ const TableRows = (props) => {
               );
             }
 
-            // ── Check if marks exceed max ──────────────────────────────
             const midVal = parseFloat(matchedSubject.mid);
             const finalVal = parseFloat(matchedSubject.final);
 
             const midExceeds =
               item.maxMid > 0 && !isNaN(midVal) && midVal > item.maxMid;
-
             const finalExceeds =
               item.maxFinal > 0 && !isNaN(finalVal) && finalVal > item.maxFinal;
 
-            // ── Check if subject is passed (>= 50% of max marks) ───────
             const maxTotal = item.maxMid + item.maxFinal;
             const obtainedTotal = computeTotal(matchedSubject);
             const obtainedMarks =
@@ -146,36 +296,23 @@ const TableRows = (props) => {
               }
             }
 
-            // ── Helper to render a cell value (number, "-", or "NA" badge) ──
-            const renderCell = (value, extraClass = "") => {
-              if (String(value ?? "").toUpperCase() === "NA") {
-                return (
-                  <td className={`text-center ${extraClass}`}>
-                    <span className="badge-na">NA</span>
-                  </td>
-                );
-              }
-              const display =
-                value !== "" && value !== null && value !== undefined
-                  ? value
-                  : "-";
-              return (
-                <td className={`text-center ${extraClass}`}>{display}</td>
-              );
-            };
-
             const totalDisplay = computeTotal(matchedSubject);
 
             return (
               <React.Fragment key={i}>
-                {renderCell(matchedSubject.mid, midExceeds ? "cell-exceeds" : "")}
-                {renderCell(matchedSubject.final, finalExceeds ? "cell-exceeds" : "")}
+                {renderCell(
+                  matchedSubject.mid,
+                  midExceeds ? "cell-exceeds" : ""
+                )}
+                {renderCell(
+                  matchedSubject.final,
+                  finalExceeds ? "cell-exceeds" : ""
+                )}
                 {renderCell(totalDisplay)}
               </React.Fragment>
             );
           });
 
-          // ── Determine Final Status ────────────────────────────────────
           const isFailed =
             hasAnyMarksEntered &&
             totalApplicableSubjects > 0 &&
@@ -194,7 +331,11 @@ const TableRows = (props) => {
               <td>{student.registration}</td>
               <td>{student.Discipline}</td>
               <td>
-                <span className={student.isRA ? "badge-reappear" : "badge-regular"}>
+                <span
+                  className={
+                    student.isRA ? "badge-reappear" : "badge-regular"
+                  }
+                >
                   {student.isRA ? "Re-appear" : "Regular"}
                 </span>
               </td>
@@ -216,7 +357,6 @@ const TableRows = (props) => {
                 )}
               </td>
 
-              {/* ── ACTION COLUMN ──────────────────────────────────────── */}
               <td className="text-center">
                 <button
                   onClick={() => setEditingStudent(student)}
@@ -252,7 +392,7 @@ const TableRows = (props) => {
                     />
                   </svg>
                 </button>
-              </td> 
+              </td>
             </tr>
           );
         })

@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSubject } from "../context/SubjectContext";
 import logo from "../assets/KMU_logo.jpg";
 import numberToWords from "../utils/numberToWords";
@@ -10,40 +10,70 @@ import {
   LuDownload,
   LuPrinter,
   LuSearch,
-  LuFilter,
+  LuSlidersHorizontal,
+  LuBookOpen,
+  LuPencil,
   LuCircleCheck,
   LuTriangleAlert,
-  LuGraduationCap,
-  LuUsers,
-  LuBuilding2,
-  LuSparkles,
   LuX,
-  LuChevronRight,
-  LuFileText,
+  LuSparkles,
+  LuFileSpreadsheet,
 } from "react-icons/lu";
+import {
+  parseCreditHours,
+  extractCreditHoursFromTitle,
+  evaluateSubjectMarks,
+  calculateSemesterGpa,
+  getOverallGradeFromGpa,
+} from "../utils/kmuCreditScheme";
+import OmrGlobalEditModal from "../components/modals/OmrGlobalEditModal";
+import OmrCandidateEditModal from "../components/modals/OmrCandidateEditModal";
+import CreditHourSchemeModal from "../components/modals/CreditHourSchemeModal";
+import { saveStudentsToDB } from "../db/studentDB";
 
-// Grade computation according to KMU grading scale
-function getGrade(percentage) {
-  if (isNaN(percentage)) return "-";
-  if (percentage >= 85) return "A+";
-  if (percentage >= 80) return "A";
-  if (percentage >= 75) return "B+";
-  if (percentage >= 70) return "B";
-  if (percentage >= 65) return "C+";
-  if (percentage >= 60) return "C";
-  if (percentage >= 50) return "D";
-  return "F";
-}
+const GLOBAL_CONFIG_STORAGE_KEY = "kmu_omr_global_config";
+
+const defaultGlobalConfig = {
+  headerTitle: "KMU IHS SWAT",
+  instituteName: "Institute of Health Sciences, Swat",
+  universityName: "KHYBER MEDICAL UNIVERSITY — PESHAWAR",
+  documentBadge: "DETAILED MARKS CERTIFICATE (DMC)",
+  session: "2024–2025",
+  exam: "8th",
+  issueDate: new Date().toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }),
+  columnMode: "midFinal", // 'midFinal' (Midterm, Final, Total) | 'theoryPrac'
+
+  // Three official signatures
+  preparedByTitle: "Prepared By:",
+  preparedBySub: "Compilation Officer",
+  preparedBySig: null,
+
+  checkedByTitle: "Checked By:",
+  checkedBySub: "Regional Director Malakand Region",
+  checkedBySig: null,
+
+  controllerTitle: "Controller of Examinations",
+  controllerSub: "Khyber Medical University",
+  controllerSig: null,
+
+  // Subject credit hours mapping
+  creditHoursMap: {},
+};
 
 const norm = (v) =>
   String(v ?? "")
     .trim()
     .toLowerCase();
 
-// Match a column subject label with student's subjects
+// Match subject label with student's subjects list
 function findSubjectMarks(studentSubjects = [], subjectName, isOspe = false) {
   const targetNorm = norm(subjectName);
-  const targetLabel = isOspe ? `${targetNorm} - ospe` : targetNorm;
+  const targetLabelMinus = isOspe ? `${targetNorm} - ospe` : targetNorm;
+  const targetLabelPlus = isOspe ? `${targetNorm} + ospe` : targetNorm;
 
   return studentSubjects.find((s) => {
     if (!s) return false;
@@ -54,15 +84,33 @@ function findSubjectMarks(studentSubjects = [], subjectName, isOspe = false) {
     const itemIsOspe = name.includes("ospe");
     if (isOspe !== itemIsOspe) return false;
 
-    if (name === targetLabel) return true;
-    if (name.replace(/\s*-\s*ospe$/, "").trim() === targetNorm) return true;
+    if (name === targetLabelMinus || name === targetLabelPlus) return true;
+    if (name.replace(/\s*[-+]\s*ospe$/, "").trim() === targetNorm) return true;
     return false;
   });
 }
 
 export default function OmrPage() {
   const navigate = useNavigate();
-  const { subjects, studentsData } = useSubject();
+  const { subjects, studentsData, setStudentsData } = useSubject();
+
+  // Global Config state
+  const [globalConfig, setGlobalConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem(GLOBAL_CONFIG_STORAGE_KEY);
+      if (saved) {
+        return { ...defaultGlobalConfig, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.error("Failed to load global OMR config from storage:", e);
+    }
+    return defaultGlobalConfig;
+  });
+
+  // Modals state
+  const [showGlobalModal, setShowGlobalModal] = useState(false);
+  const [showCreditGuideModal, setShowCreditGuideModal] = useState(false);
+  const [editingCandidate, setEditingCandidate] = useState(null);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -72,6 +120,35 @@ export default function OmrPage() {
   const [progressText, setProgressText] = useState("");
 
   const dmcRefs = useRef({});
+
+  // Persist globalConfig
+  const handleSaveGlobalConfig = (newConfig) => {
+    setGlobalConfig(newConfig);
+    try {
+      localStorage.setItem(GLOBAL_CONFIG_STORAGE_KEY, JSON.stringify(newConfig));
+    } catch (e) {
+      console.error("Failed to persist global OMR config:", e);
+    }
+  };
+
+  // Save individual candidate edits
+  const handleSaveCandidate = async (updatedStudent) => {
+    const updatedList = (studentsData || []).map((s) => {
+      const matchRoll = norm(s.rollNumber) === norm(updatedStudent.rollNumber);
+      const matchReg = norm(s.registration) === norm(updatedStudent.registration);
+      if (matchRoll || (s.registration && matchReg)) {
+        return { ...s, ...updatedStudent };
+      }
+      return s;
+    });
+
+    setStudentsData(updatedList);
+    try {
+      await saveStudentsToDB(updatedList);
+    } catch (err) {
+      console.error("Failed to save student edits to DB:", err);
+    }
+  };
 
   // Compile candidate evaluation data
   const candidateResults = useMemo(() => {
@@ -83,6 +160,12 @@ export default function OmrPage() {
 
       let totalMaxMarks = 0;
       let totalObtainedMarks = 0;
+
+      let totalMidMax = 0;
+      let totalMidObtained = 0;
+      let totalFinalMax = 0;
+      let totalFinalObtained = 0;
+
       let totalTheoryMax = 0;
       let totalTheoryObtained = 0;
       let totalPracMax = 0;
@@ -109,7 +192,27 @@ export default function OmrPage() {
           ? (Number(cfg.ospeMaxFinal) ?? theoryFinalMax) || 0
           : 0;
         const pracMax = hasOspe ? ospeMidMax + ospeFinalMax : 0;
+
+        const subjectMidMax = theoryMidMax + ospeMidMax;
+        const subjectFinalMax = theoryFinalMax + ospeFinalMax;
         const subjectMaxTotal = theoryMax + pracMax;
+
+        // Credit Hours Resolution
+        const userCustomCredits = student?.customCreditHours?.[subjectTitle];
+        const globalSubjectCredits = globalConfig?.creditHoursMap?.[subjectTitle];
+        const titleEmbeddedCredits = extractCreditHoursFromTitle(subjectTitle);
+
+        let resolvedCredits = userCustomCredits || globalSubjectCredits || titleEmbeddedCredits;
+        if (!resolvedCredits) {
+          if (subjectMaxTotal === 100) resolvedCredits = hasOspe ? "3+1" : "4+0";
+          else if (subjectMaxTotal === 75) resolvedCredits = hasOspe ? "2+1" : "3+0";
+          else if (subjectMaxTotal === 50) resolvedCredits = hasOspe ? "1+1" : "2+0";
+          else if (subjectMaxTotal === 25) resolvedCredits = "1+0";
+          else if (subjectMaxTotal === 125) resolvedCredits = "0+5";
+          else if (subjectMaxTotal === 150) resolvedCredits = "6";
+          else if (subjectMaxTotal === 140) resolvedCredits = hasOspe ? "2+1" : "3";
+          else resolvedCredits = "3";
+        }
 
         // Find theory record
         const theoryRecord = findSubjectMarks(studentSubjects, subjectTitle, false);
@@ -133,13 +236,16 @@ export default function OmrPage() {
         // If Re-appear student and not registered in this subject
         const isNotEnrolled = isRA && !theoryRecord && !ospeRecord;
 
+        let theoryMidObt = null;
+        let theoryFinalObt = null;
         let theoryObtained = null;
-        let pracObtained = null;
-        let subjectTotalObtained = null;
 
         if (theoryRecord && !isTheoryNA) {
           const mid = parseFloat(theoryRecord.mid);
           const fin = parseFloat(theoryRecord.final);
+          if (!isNaN(mid)) theoryMidObt = mid;
+          if (!isNaN(fin)) theoryFinalObt = fin;
+
           if (!isNaN(mid) && !isNaN(fin)) {
             theoryObtained = mid + fin;
           } else if (!isNaN(parseFloat(theoryRecord.total))) {
@@ -147,9 +253,16 @@ export default function OmrPage() {
           }
         }
 
+        let pracMidObt = null;
+        let pracFinalObt = null;
+        let pracObtained = null;
+
         if (hasOspe && ospeRecord && !isOspeNA) {
           const mid = parseFloat(ospeRecord.mid);
           const fin = parseFloat(ospeRecord.final);
+          if (!isNaN(mid)) pracMidObt = mid;
+          if (!isNaN(fin)) pracFinalObt = fin;
+
           if (!isNaN(mid) && !isNaN(fin)) {
             pracObtained = mid + fin;
           } else if (!isNaN(parseFloat(ospeRecord.total))) {
@@ -157,22 +270,30 @@ export default function OmrPage() {
           }
         }
 
+        let subjectMidObtained = null;
+        if (theoryMidObt !== null || pracMidObt !== null) {
+          subjectMidObtained = (theoryMidObt || 0) + (pracMidObt || 0);
+        }
+
+        let subjectFinalObtained = null;
+        if (theoryFinalObt !== null || pracFinalObt !== null) {
+          subjectFinalObtained = (theoryFinalObt || 0) + (pracFinalObt || 0);
+        }
+
+        let subjectTotalObtained = null;
         if (theoryObtained !== null || pracObtained !== null) {
           hasAnyMarks = true;
           subjectTotalObtained = (theoryObtained || 0) + (pracObtained || 0);
         }
 
         const isSubjectApplicable = !isNotEnrolled;
-        let isSubjectPassed = false;
-        let subjectPercentage = null;
+        let evalResult = { isPassed: false, grade: "-", gpa: 0.0, percentage: null };
 
         if (isSubjectApplicable && subjectTotalObtained !== null && subjectMaxTotal > 0) {
-          subjectPercentage = (subjectTotalObtained / subjectMaxTotal) * 100;
-          // Rule: 50% or more passes the subject
-          isSubjectPassed = subjectPercentage >= 50;
+          evalResult = evaluateSubjectMarks(subjectTotalObtained, subjectMaxTotal);
 
           applicableSubjectsCount++;
-          if (isSubjectPassed) {
+          if (evalResult.isPassed) {
             passedSubjectsCount++;
           } else {
             failedSubjectsCount++;
@@ -180,67 +301,102 @@ export default function OmrPage() {
 
           totalMaxMarks += subjectMaxTotal;
           totalObtainedMarks += subjectTotalObtained;
+
+          totalMidMax += subjectMidMax;
+          totalMidObtained += subjectMidObtained || 0;
+          totalFinalMax += subjectFinalMax;
+          totalFinalObtained += subjectFinalObtained || 0;
+
           totalTheoryMax += theoryMax;
           totalTheoryObtained += theoryObtained || 0;
           totalPracMax += pracMax;
           totalPracObtained += pracObtained || 0;
         } else if (isSubjectApplicable && (isTheoryNA || isOspeNA)) {
-          // Absent or NA in applicable exam
           applicableSubjectsCount++;
           failedSubjectsCount++;
           totalMaxMarks += subjectMaxTotal;
+          totalMidMax += subjectMidMax;
+          totalFinalMax += subjectFinalMax;
+          totalTheoryMax += theoryMax;
+          totalPracMax += pracMax;
         }
 
+        const isCombined = hasOspe && cfg.ospeType === "combined";
+        const displayTitle = isCombined ? `${subjectTitle} + OSPE` : subjectTitle;
+
         return {
-          title: subjectTitle,
+          title: displayTitle,
           hasOspe,
-          theoryMax,
-          pracMax: hasOspe ? pracMax : "--",
+          creditHours: resolvedCredits,
+          // Midterm & Final columns (User requested layout)
+          midMax: subjectMidMax,
+          finalMax: subjectFinalMax,
           totalMax: subjectMaxTotal,
-          theoryObtained: isTheoryNA
+          midObtained: isNotEnrolled
             ? "NA"
-            : theoryObtained !== null
-            ? theoryObtained
+            : isTheoryNA && (!hasOspe || isOspeNA)
+            ? "NA"
+            : subjectMidObtained !== null
+            ? subjectMidObtained
             : "-",
-          pracObtained: !hasOspe
+          finalObtained: isNotEnrolled
+            ? "NA"
+            : isTheoryNA && (!hasOspe || isOspeNA)
+            ? "NA"
+            : subjectFinalObtained !== null
+            ? subjectFinalObtained
+            : "-",
+          // Theory & Prac columns (Legacy layout)
+          theoryMax: isCombined ? subjectMaxTotal : theoryMax,
+          pracMax: isCombined ? "--" : (hasOspe ? pracMax : "--"),
+          theoryObtained: isCombined
+            ? (isTheoryNA || isOspeNA ? "NA" : subjectTotalObtained !== null ? subjectTotalObtained : "-")
+            : (isTheoryNA ? "NA" : theoryObtained !== null ? theoryObtained : "-"),
+          pracObtained: isCombined || !hasOspe
             ? "--"
             : isOspeNA
             ? "NA"
             : pracObtained !== null
             ? pracObtained
             : "-",
+          // Total
           totalObtained: isNotEnrolled
             ? "NA"
             : subjectTotalObtained !== null
             ? subjectTotalObtained
-            : isTheoryNA
+            : isTheoryNA || isOspeNA
             ? "NA"
             : "-",
-          percentage:
-            subjectPercentage !== null ? Math.round(subjectPercentage) : null,
-          isPassed: isSubjectPassed,
+          gpa: evalResult.gpa,
+          grade: evalResult.grade,
+          isPassed: evalResult.isPassed,
           isNA: isNotEnrolled,
           inWords:
             subjectTotalObtained !== null
               ? numberToWords(subjectTotalObtained)
-              : isTheoryNA || isNotEnrolled
+              : isTheoryNA || isOspeNA || isNotEnrolled
               ? "Not Applicable"
               : "-",
         };
       });
 
-      // Overall Candidate Pass / Fail Rule:
-      // "if a student have pass more then half subject then it will be pass if not then it will be fail"
-      const overallPercentage =
-        totalMaxMarks > 0 ? (totalObtainedMarks / totalMaxMarks) * 100 : 0;
+      // Overall Candidate Evaluation
+      const totalCreditHoursSum = subjectRows.reduce(
+        (acc, r) => acc + (r.isNA ? 0 : parseCreditHours(r.creditHours)),
+        0
+      );
 
-      // Pass if passed > half of applicable subjects
+      const semesterGpa = calculateSemesterGpa(subjectRows);
+
+      // Rule: Pass if passed > half of applicable subjects
       const isPassed =
         hasAnyMarks &&
         applicableSubjectsCount > 0 &&
         passedSubjectsCount > applicableSubjectsCount / 2;
 
-      const grade = hasAnyMarks ? getGrade(overallPercentage) : "-";
+      const overallGrade = hasAnyMarks
+        ? getOverallGradeFromGpa(semesterGpa, isPassed)
+        : "-";
 
       return {
         student,
@@ -249,19 +405,24 @@ export default function OmrPage() {
         name: student?.name || "Candidate Name",
         fatherName: student?.fatherName || "Father's Name",
         registration: student?.registration || "-",
-        institute: student?.institute || "KMU Institute of Health Sciences, Swat",
+        institute: student?.institute || globalConfig.instituteName || "KMU Institute of Health Sciences, Swat",
         discipline: student?.Discipline || "Health Sciences",
-        semester: student?.semester || "Annual Examination",
+        semester: student?.semester || globalConfig.exam || "8th",
         isRA,
         subjectRows,
         summary: {
+          totalCreditHours: totalCreditHoursSum,
+          totalMidMax,
+          totalMidObtained,
+          totalFinalMax,
+          totalFinalObtained,
           totalTheoryMax,
           totalTheoryObtained,
           totalPracMax,
           totalPracObtained,
           totalMaxMarks,
           totalObtainedMarks,
-          percentage: Math.round(overallPercentage * 10) / 10,
+          semesterGpa,
           inWords: numberToWords(totalObtainedMarks),
         },
         hasAnyMarks,
@@ -269,10 +430,10 @@ export default function OmrPage() {
         passedSubjectsCount,
         failedSubjectsCount,
         isPassed,
-        grade,
+        grade: overallGrade,
       };
     });
-  }, [studentsData, subjects]);
+  }, [studentsData, subjects, globalConfig]);
 
   // Unique institutes for filter
   const institutesList = useMemo(() => {
@@ -286,7 +447,6 @@ export default function OmrPage() {
   // Filtered candidate results
   const filteredCandidates = useMemo(() => {
     return candidateResults.filter((item) => {
-      // 1. Search Query
       if (searchQuery.trim()) {
         const q = norm(searchQuery);
         const nameMatch = norm(item.name).includes(q);
@@ -299,13 +459,11 @@ export default function OmrPage() {
         }
       }
 
-      // 2. Status Filter
       if (statusFilter === "pass" && !item.isPassed) return false;
       if (statusFilter === "fail" && item.isPassed) return false;
       if (statusFilter === "regular" && item.isRA) return false;
       if (statusFilter === "reappear" && !item.isRA) return false;
 
-      // 3. Institute Filter
       if (instituteFilter !== "all" && item.institute !== instituteFilter) {
         return false;
       }
@@ -322,7 +480,7 @@ export default function OmrPage() {
     return { total, passed, failed };
   }, [candidateResults]);
 
-  // Download all or filtered DMCs as a single multi-page PDF
+  // Export All as Multi-Page PDF
   const handleDownloadAllPdf = async () => {
     if (filteredCandidates.length === 0) {
       alert("No student DMC records to export.");
@@ -374,7 +532,7 @@ export default function OmrPage() {
     }
   };
 
-  // Download a single candidate DMC
+  // Export Single DMC as PDF
   const handleDownloadSinglePdf = async (candidate) => {
     try {
       const elem = dmcRefs.current[candidate.student.rollNumber || candidate.serial];
@@ -402,9 +560,11 @@ export default function OmrPage() {
     }
   };
 
+  const isMidFinalLayout = globalConfig.columnMode !== "theoryPrac";
+
   return (
     <div className="omr-page-wrapper">
-      {/* ── Top Fixed Navigation & Filter Bar ── */}
+      {/* ── Top Fixed Navigation Bar ── */}
       <div className="omr-top-nav no-print">
         <div className="container-fluid px-4 py-3">
           <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
@@ -423,12 +583,12 @@ export default function OmrPage() {
                   Detailed Marks Certificates (DMC / OMR)
                 </h4>
                 <div className="text-muted" style={{ fontSize: "12px" }}>
-                  Official University Grade Sheets • {filteredCandidates.length} Candidates Loaded
+                  Official KMU Examination Records • {filteredCandidates.length} Candidates Loaded
                 </div>
               </div>
             </div>
 
-            {/* Right: Quick Stats & Print */}
+            {/* Right: Actions, Global Edit, Credit Scheme, Print, Export */}
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
                 {stats.passed} Passed
@@ -436,6 +596,28 @@ export default function OmrPage() {
               <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
                 {stats.failed} Failed
               </span>
+
+              {/* Edit All OMR Entries Button */}
+              <button
+                type="button"
+                onClick={() => setShowGlobalModal(true)}
+                className="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm fw-semibold text-dark"
+                title="Edit Institute name, upload 3 signatures, configure credit hours"
+              >
+                <LuSlidersHorizontal size={15} />
+                <span>Edit All OMR Entries</span>
+              </button>
+
+              {/* View KMU Credit Hours Scheme Button */}
+              <button
+                type="button"
+                onClick={() => setShowCreditGuideModal(true)}
+                className="btn-sc btn-sc-outline btn-sc-sm d-flex align-items-center gap-1"
+                title="View KMU Credit Hour Marks Distribution Chart & Calculator"
+              >
+                <LuBookOpen size={15} />
+                <span>Credit Hours Scheme</span>
+              </button>
 
               <button
                 type="button"
@@ -588,7 +770,7 @@ export default function OmrPage() {
 
             return (
               <div key={refKey} className="dmc-card-wrapper">
-                {/* Action header bar above each individual DMC (visible on screen only) */}
+                {/* Action Toolbar above each individual DMC */}
                 <div className="dmc-card-toolbar no-print">
                   <div className="d-flex align-items-center gap-2">
                     <span className="badge bg-dark text-white rounded-pill px-2 py-1">
@@ -606,17 +788,34 @@ export default function OmrPage() {
                     >
                       {candidate.isPassed ? "PASS" : "FAIL"}
                     </span>
+                    <span className="text-muted small ms-2">
+                      Total Cr: <strong>{candidate.summary.totalCreditHours}</strong> | GPA:{" "}
+                      <strong className="text-primary">{candidate.summary.semesterGpa.toFixed(2)}</strong>
+                    </span>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadSinglePdf(candidate)}
-                    className="btn-sc btn-sc-outline btn-sc-sm d-flex align-items-center gap-1"
-                    title="Download this single DMC as PDF"
-                  >
-                    <LuDownload size={14} />
-                    <span>Download PDF</span>
-                  </button>
+                  <div className="d-flex align-items-center gap-2">
+                    {/* Individual Edit Button */}
+                    <button
+                      type="button"
+                      onClick={() => setEditingCandidate(candidate)}
+                      className="btn-dmc-action"
+                      title="Edit this individual candidate's DMC details and marks"
+                    >
+                      <LuPencil size={13} className="text-primary" />
+                      <span>Edit DMC</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadSinglePdf(candidate)}
+                      className="btn-dmc-action"
+                      title="Download this single DMC as PDF"
+                    >
+                      <LuDownload size={13} />
+                      <span>Download PDF</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* ── Authentic A4 DMC Document ── */}
@@ -624,7 +823,6 @@ export default function OmrPage() {
                   ref={(el) => (dmcRefs.current[refKey] = el)}
                   className="dmc-sheet-page"
                 >
-                  {/* Outer double border framing */}
                   <div className="dmc-sheet-inner">
                     {/* Header with Calligraphy Title & Logo */}
                     <div className="dmc-header">
@@ -639,36 +837,30 @@ export default function OmrPage() {
                       </div>
 
                       <div className="dmc-header-center">
-                        {/* Elegant Calligraphy Title */}
                         <div className="dmc-calligraphy-title">
-                          KMU IHS Swat
+                          {globalConfig.headerTitle || "KMU IHS SWAT"}
                         </div>
                         <div className="dmc-sub-institution">
-                          Institute of Health Sciences, Swat
+                          {globalConfig.instituteName || "INSTITUTE OF HEALTH SCIENCES, SWAT"}
                         </div>
                         <div className="dmc-university-name">
-                          Khyber Medical University — Peshawar
+                          {globalConfig.universityName || "KHYBER MEDICAL UNIVERSITY — PESHAWAR"}
                         </div>
                         <div className="dmc-document-badge">
-                          DETAILED MARKS CERTIFICATE (DMC)
+                          {globalConfig.documentBadge || "DETAILED MARKS CERTIFICATE (DMC)"}
                         </div>
                       </div>
 
                       <div className="dmc-header-right">
                         <div className="dmc-meta-box">
                           <div>
-                            <strong>Session:</strong> 2024–2025
+                            <strong>Session:</strong> {globalConfig.session || "2024–2025"}
                           </div>
                           <div>
-                            <strong>Exam:</strong> {candidate.semester}
+                            <strong>Exam:</strong> {candidate.semester || globalConfig.exam || "8th"}
                           </div>
                           <div>
-                            <strong>Issue Date:</strong>{" "}
-                            {new Date().toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
+                            <strong>Issue Date:</strong> {globalConfig.issueDate}
                           </div>
                         </div>
                       </div>
@@ -676,7 +868,7 @@ export default function OmrPage() {
 
                     <div className="dmc-divider-gold" />
 
-                    {/* Student Info Box (Layout modeled exactly from reference image) */}
+                    {/* Student Info Box */}
                     <table className="dmc-student-info-table">
                       <tbody>
                         <tr>
@@ -720,59 +912,106 @@ export default function OmrPage() {
                       </tbody>
                     </table>
 
-                    {/* Marks Table (Exact columns matching user image) */}
+                    {/* Marks Table: Includes "Cr. hours", "Midterm / Final / Total", and "GPA" */}
                     <table className="dmc-marks-table">
                       <thead>
                         <tr>
-                          <th rowSpan="2" className="text-start" style={{ width: "28%" }}>
+                          <th rowSpan="2" className="text-start" style={{ width: "24%" }}>
                             Subject
                           </th>
-                          <th colSpan="3" className="text-center group-header">
-                            Total Marks
+                          <th rowSpan="2" className="text-center" style={{ width: "8%" }}>
+                            Cr. hours
                           </th>
                           <th colSpan="3" className="text-center group-header">
-                            Obtained Marks
+                            TOTAL MARKS
+                          </th>
+                          <th colSpan="3" className="text-center group-header">
+                            OBTAINED MARKS
                           </th>
                           <th rowSpan="2" className="text-center" style={{ width: "8%" }}>
-                            %
+                            GPA
                           </th>
                           <th rowSpan="2" className="text-center" style={{ width: "8%" }}>
                             Status
                           </th>
-                          <th rowSpan="2" className="text-start" style={{ width: "24%" }}>
+                          <th rowSpan="2" className="text-start" style={{ width: "22%" }}>
                             In words
                           </th>
                         </tr>
                         <tr>
-                          <th className="text-center sub-th">Theory</th>
-                          <th className="text-center sub-th">Prac/Oral</th>
-                          <th className="text-center sub-th">Total</th>
-                          <th className="text-center sub-th">Theory</th>
-                          <th className="text-center sub-th">Prac/Oral</th>
-                          <th className="text-center sub-th">Total</th>
+                          {isMidFinalLayout ? (
+                            <>
+                              <th className="text-center sub-th">Midterm</th>
+                              <th className="text-center sub-th">Final</th>
+                              <th className="text-center sub-th">Total</th>
+                              <th className="text-center sub-th">Midterm</th>
+                              <th className="text-center sub-th">Final</th>
+                              <th className="text-center sub-th">Total</th>
+                            </>
+                          ) : (
+                            <>
+                              <th className="text-center sub-th">Theory</th>
+                              <th className="text-center sub-th">Prac/Oral</th>
+                              <th className="text-center sub-th">Total</th>
+                              <th className="text-center sub-th">Theory</th>
+                              <th className="text-center sub-th">Prac/Oral</th>
+                              <th className="text-center sub-th">Total</th>
+                            </>
+                          )}
                         </tr>
                       </thead>
                       <tbody>
                         {candidate.subjectRows.map((row, rIdx) => (
                           <tr key={rIdx}>
                             <td className="subject-title-cell">{row.title}</td>
-                            <td className="text-center">{row.theoryMax}</td>
-                            <td className="text-center">{row.pracMax}</td>
-                            <td className="text-center fw-semibold">{row.totalMax}</td>
-
-                            <td className="text-center">{row.theoryObtained}</td>
-                            <td className="text-center">{row.pracObtained}</td>
-                            <td className="text-center fw-bold">
-                              {row.totalObtained}
+                            <td className="text-center fw-semibold text-secondary">
+                              {row.creditHours}
                             </td>
 
-                            <td className="text-center">
-                              {row.percentage !== null ? `${row.percentage}%` : "-"}
+                            {isMidFinalLayout ? (
+                              <>
+                                <td className="text-center">{row.midMax}</td>
+                                <td className="text-center">{row.finalMax}</td>
+                                <td className="text-center fw-semibold">{row.totalMax}</td>
+
+                                <td className="text-center">{row.midObtained}</td>
+                                <td className="text-center">{row.finalObtained}</td>
+                                <td className="text-center fw-bold">{row.totalObtained}</td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="text-center">{row.theoryMax}</td>
+                                <td className="text-center">{row.pracMax}</td>
+                                <td className="text-center fw-semibold">{row.totalMax}</td>
+
+                                <td className="text-center">{row.theoryObtained}</td>
+                                <td className="text-center">{row.pracObtained}</td>
+                                <td className="text-center fw-bold">{row.totalObtained}</td>
+                              </>
+                            )}
+
+                            {/* GPA column (replaces percentage column) */}
+                            <td className="text-center fw-semibold">
+                              {row.isNA ? (
+                                <span className="dmc-na-pill">NA</span>
+                              ) : row.totalObtained !== "-" ? (
+                                <span
+                                  className={
+                                    row.isPassed ? "text-dark" : "text-danger fw-bold"
+                                  }
+                                >
+                                  {row.gpa.toFixed(2)}
+                                </span>
+                              ) : (
+                                "-"
+                              )}
                             </td>
+
+                            {/* Status */}
                             <td className="text-center">
                               {row.isNA ? (
                                 <span className="dmc-na-pill">NA</span>
-                              ) : row.percentage !== null ? (
+                              ) : row.totalObtained !== "-" ? (
                                 <span
                                   className={
                                     row.isPassed ? "dmc-pass-text" : "dmc-fail-text"
@@ -784,6 +1023,7 @@ export default function OmrPage() {
                                 "-"
                               )}
                             </td>
+
                             <td className="in-words-cell">{row.inWords}</td>
                           </tr>
                         ))}
@@ -791,29 +1031,61 @@ export default function OmrPage() {
                         {/* Summary / Totals Row */}
                         <tr className="dmc-summary-row">
                           <td className="fw-bold">Summary / Total</td>
-                          <td className="text-center fw-bold">
-                            {candidate.summary.totalTheoryMax}
-                          </td>
-                          <td className="text-center fw-bold">
-                            {candidate.summary.totalPracMax || "--"}
-                          </td>
-                          <td className="text-center fw-bold">
-                            {candidate.summary.totalMaxMarks}
-                          </td>
-
-                          <td className="text-center fw-bold">
-                            {candidate.summary.totalTheoryObtained}
-                          </td>
-                          <td className="text-center fw-bold">
-                            {candidate.summary.totalPracObtained || "--"}
-                          </td>
                           <td className="text-center fw-bold text-dark">
-                            {candidate.summary.totalObtainedMarks}
+                            {candidate.summary.totalCreditHours}
                           </td>
 
-                          <td className="text-center fw-bold">
-                            {candidate.summary.percentage}%
+                          {isMidFinalLayout ? (
+                            <>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalMidMax}
+                              </td>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalFinalMax}
+                              </td>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalMaxMarks}
+                              </td>
+
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalMidObtained}
+                              </td>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalFinalObtained}
+                              </td>
+                              <td className="text-center fw-bold text-dark">
+                                {candidate.summary.totalObtainedMarks}
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalTheoryMax}
+                              </td>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalPracMax || "--"}
+                              </td>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalMaxMarks}
+                              </td>
+
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalTheoryObtained}
+                              </td>
+                              <td className="text-center fw-bold">
+                                {candidate.summary.totalPracObtained || "--"}
+                              </td>
+                              <td className="text-center fw-bold text-dark">
+                                {candidate.summary.totalObtainedMarks}
+                              </td>
+                            </>
+                          )}
+
+                          {/* Summary GPA Column */}
+                          <td className="text-center fw-bold text-primary">
+                            {candidate.summary.semesterGpa.toFixed(2)}
                           </td>
+
                           <td className="text-center fw-bold">
                             <span
                               className={
@@ -823,6 +1095,7 @@ export default function OmrPage() {
                               {candidate.isPassed ? "Pass" : "Fail"}
                             </span>
                           </td>
+
                           <td className="in-words-cell fw-bold">
                             {candidate.summary.inWords}
                           </td>
@@ -830,12 +1103,12 @@ export default function OmrPage() {
                       </tbody>
                     </table>
 
-                    {/* Overall Results & Remarks Bar */}
+                    {/* Overall Results & Remarks Bar: Displays GPA instead of Percentage */}
                     <div className="dmc-result-bar">
                       <div className="result-stat-item">
-                        <span className="result-label">Percentage:</span>
+                        <span className="result-label">GPA:</span>
                         <span className="result-val-underline">
-                          {candidate.summary.percentage}%
+                          {candidate.summary.semesterGpa.toFixed(2)}
                         </span>
                       </div>
 
@@ -850,19 +1123,17 @@ export default function OmrPage() {
                         <span className="result-label">Remarks:</span>
                         <span className="result-remarks-wrap">
                           {candidate.isPassed ? (
-                            <span className="dmc-pass-stamp">Pass</span>
+                            <span className="dmc-pass-stamp">PASS</span>
                           ) : (
-                            /* CIRCLED ARROW AROUND FAIL - as requested by user */
+                            /* CIRCLED ARROW AROUND FAIL - as shown in reference image */
                             <div className="dmc-fail-circle-container">
                               <span className="dmc-fail-text-boxed">FAIL</span>
-                              {/* Hand-drawn circular ring with arrow */}
                               <svg
                                 className="dmc-circle-arrow-svg"
                                 viewBox="0 0 110 52"
                                 fill="none"
                                 xmlns="http://www.w3.org/2000/svg"
                               >
-                                {/* Hand-drawn irregular oval circle */}
                                 <ellipse
                                   cx="55"
                                   cy="26"
@@ -875,7 +1146,6 @@ export default function OmrPage() {
                                   strokeLinecap="round"
                                   transform="rotate(-2 55 26)"
                                 />
-                                {/* Dynamic Arrow pointing directly into the circle */}
                                 <path
                                   d="M 98 12 L 106 18 L 102 26"
                                   stroke="#dc2626"
@@ -890,56 +1160,93 @@ export default function OmrPage() {
                       </div>
                     </div>
 
-                    {/* Signatures & Footer Area */}
+                    {/* Official Signatures Area: Supports uploaded signature images */}
                     <div className="dmc-signatures-area">
+                      {/* 1. Prepared By */}
                       <div className="sig-block">
                         <div className="sig-line">
-                          {/* Authentic signature sketch */}
-                          <svg
-                            width="90"
-                            height="30"
-                            viewBox="0 0 100 35"
-                            className="sig-sketch"
-                          >
-                            <path
-                              d="M5 25 C 20 5, 30 35, 45 15 C 60 -5, 70 30, 95 20"
-                              fill="none"
-                              stroke="#1e3a8a"
-                              strokeWidth="1.8"
-                              strokeLinecap="round"
+                          {globalConfig.preparedBySig ? (
+                            <img
+                              src={globalConfig.preparedBySig}
+                              alt="Prepared By Signature"
+                              className="sig-img"
                             />
-                          </svg>
+                          ) : (
+                            <svg
+                              width="90"
+                              height="30"
+                              viewBox="0 0 100 35"
+                              className="sig-sketch"
+                            >
+                              <path
+                                d="M5 25 C 20 5, 30 35, 45 15 C 60 -5, 70 30, 95 20"
+                                fill="none"
+                                stroke="#1e3a8a"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          )}
                         </div>
-                        <div className="sig-title">Prepared By:</div>
-                        <div className="sig-sub">Assistant Controller</div>
+                        <div className="sig-title">
+                          {globalConfig.preparedByTitle || "Prepared By:"}
+                        </div>
+                        <div className="sig-sub">
+                          {globalConfig.preparedBySub || "Assistant Controller"}
+                        </div>
                       </div>
 
-                      <div className="sig-block">
-                        <div className="sig-line" />
-                        <div className="sig-title">Checked By:</div>
-                        <div className="sig-sub">Superintendent Exams</div>
-                      </div>
-
+                      {/* 2. Checked By */}
                       <div className="sig-block">
                         <div className="sig-line">
-                          {/* Controller signature sketch */}
-                          <svg
-                            width="110"
-                            height="35"
-                            viewBox="0 0 110 40"
-                            className="sig-sketch"
-                          >
-                            <path
-                              d="M10 28 C 30 5, 25 38, 55 12 C 75 -2, 85 35, 105 18 M 40 25 L 80 25"
-                              fill="none"
-                              stroke="#881337"
-                              strokeWidth="2"
-                              strokeLinecap="round"
+                          {globalConfig.checkedBySig ? (
+                            <img
+                              src={globalConfig.checkedBySig}
+                              alt="Checked By Signature"
+                              className="sig-img"
                             />
-                          </svg>
+                          ) : null}
                         </div>
-                        <div className="sig-title">Controller of Examinations</div>
-                        <div className="sig-sub">Khyber Medical University</div>
+                        <div className="sig-title">
+                          {globalConfig.checkedByTitle || "Checked By:"}
+                        </div>
+                        <div className="sig-sub">
+                          {globalConfig.checkedBySub || "Superintendent Exams"}
+                        </div>
+                      </div>
+
+                      {/* 3. Controller of Examinations */}
+                      <div className="sig-block">
+                        <div className="sig-line">
+                          {globalConfig.controllerSig ? (
+                            <img
+                              src={globalConfig.controllerSig}
+                              alt="Controller Signature"
+                              className="sig-img"
+                            />
+                          ) : (
+                            <svg
+                              width="110"
+                              height="35"
+                              viewBox="0 0 110 40"
+                              className="sig-sketch"
+                            >
+                              <path
+                                d="M10 28 C 30 5, 25 38, 55 12 C 75 -2, 85 35, 105 18 M 40 25 L 80 25"
+                                fill="none"
+                                stroke="#881337"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="sig-title">
+                          {globalConfig.controllerTitle || "Controller of Examinations"}
+                        </div>
+                        <div className="sig-sub">
+                          {globalConfig.controllerSub || "Khyber Medical University"}
+                        </div>
                       </div>
                     </div>
 
@@ -954,7 +1261,38 @@ export default function OmrPage() {
         )}
       </div>
 
-      {/* ── Floating Download Button in Bottom Right ── */}
+      {/* ── Global OMR Settings Modal ── */}
+      {showGlobalModal && (
+        <OmrGlobalEditModal
+          show={showGlobalModal}
+          onHide={() => setShowGlobalModal(false)}
+          globalConfig={globalConfig}
+          subjects={subjects}
+          onSave={handleSaveGlobalConfig}
+        />
+      )}
+
+      {/* ── Individual Candidate Edit Modal ── */}
+      {editingCandidate && (
+        <OmrCandidateEditModal
+          show={Boolean(editingCandidate)}
+          onHide={() => setEditingCandidate(null)}
+          candidate={editingCandidate}
+          subjects={subjects}
+          globalConfig={globalConfig}
+          onSave={handleSaveCandidate}
+        />
+      )}
+
+      {/* ── Credit Hours Weightage Guide Modal ── */}
+      {showCreditGuideModal && (
+        <CreditHourSchemeModal
+          show={showCreditGuideModal}
+          onHide={() => setShowCreditGuideModal(false)}
+        />
+      )}
+
+      {/* ── Floating Export Button in Bottom Right ── */}
       {filteredCandidates.length > 0 && (
         <div className="omr-floating-bar no-print">
           <div className="d-flex align-items-center gap-3">

@@ -11,6 +11,8 @@ import {
   LuCheck,
   LuX,
   LuCircleAlert,
+  LuLayers,
+  LuSplit,
 } from "react-icons/lu";
 
 export default function CsSection() {
@@ -24,7 +26,12 @@ export default function CsSection() {
 
   useEffect(() => {
     if (contextSubjects?.length) {
-      setSubjects(contextSubjects);
+      setSubjects(
+        contextSubjects.map((s) => ({
+          ...s,
+          ospeType: s.ospeType || (s.ospe ? "separated" : "combined"),
+        }))
+      );
       setCount(contextSubjects.length.toString());
     }
   }, [contextSubjects]);
@@ -34,6 +41,7 @@ export default function CsSection() {
     const newSubjects = Array.from({ length: value }, () => ({
       subject: "",
       ospe: false,
+      ospeType: "separated", // "combined" | "separated"
       maxMid: "",
       maxFinal: "",
       ospeMaxMid: "",
@@ -45,12 +53,15 @@ export default function CsSection() {
   const updateSubject = (index, key, value) => {
     const updated = [...subjects];
     updated[index][key] = value;
+    if (key === "ospe" && value === true && !updated[index].ospeType) {
+      updated[index].ospeType = "separated";
+    }
     setSubjects(updated);
   };
 
   const handleGenerate = () => {
     const hasEmptyField = subjects.some(
-      (s) => s.subject.trim() === "" || s.ospe === null,
+      (s) => s.subject.trim() === "" || s.ospe === null
     );
     if (hasEmptyField) {
       alert("Please enter subject names for all rows.");
@@ -75,6 +86,7 @@ export default function CsSection() {
       ...s,
       maxMid: Number(s.maxMid),
       maxFinal: Number(s.maxFinal),
+      ospeType: s.ospe ? s.ospeType || "separated" : undefined,
       ospeMaxMid: s.ospe ? Number(s.ospeMaxMid) : undefined,
       ospeMaxFinal: s.ospe ? Number(s.ospeMaxFinal) : undefined,
     }));
@@ -139,9 +151,9 @@ export default function CsSection() {
             <table className="customTable mb-0">
               <thead>
                 <tr>
-                  <th style={{ width: "60px" }}>#</th>
+                  <th style={{ width: "50px" }}>#</th>
                   <th>Subject / Course Title</th>
-                  <th style={{ width: "200px" }}>Practical / OSPE Component</th>
+                  <th style={{ width: "320px" }}>Practical / OSPE Component</th>
                 </tr>
               </thead>
               <tbody>
@@ -173,33 +185,92 @@ export default function CsSection() {
                       </div>
                     </td>
                     <td>
-                      <div className="d-flex align-items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateSubject(index, "ospe", true)}
-                          className={`btn-sc btn-sc-sm ${
-                            item.ospe === true
-                              ? "btn-sc-success"
-                              : "btn-sc-outline"
-                          }`}
-                          style={{ minWidth: "68px" }}
-                        >
-                          <LuCheck size={13} />
-                          Yes
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateSubject(index, "ospe", false)}
-                          className={`btn-sc btn-sc-sm ${
-                            item.ospe === false
-                              ? "btn-sc-dark"
-                              : "btn-sc-outline"
-                          }`}
-                          style={{ minWidth: "68px" }}
-                        >
-                          <LuX size={13} />
-                          No
-                        </button>
+                      <div className="d-flex flex-column gap-2">
+                        {/* Yes / No Toggle Buttons */}
+                        <div className="d-flex align-items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => updateSubject(index, "ospe", true)}
+                            className={`btn-sc btn-sc-sm ${
+                              item.ospe === true
+                                ? "btn-sc-success"
+                                : "btn-sc-outline"
+                            }`}
+                            style={{ minWidth: "68px" }}
+                          >
+                            <LuCheck size={13} />
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSubject(index, "ospe", false)}
+                            className={`btn-sc btn-sc-sm ${
+                              item.ospe === false
+                                ? "btn-sc-dark"
+                                : "btn-sc-outline"
+                            }`}
+                            style={{ minWidth: "68px" }}
+                          >
+                            <LuX size={13} />
+                            No
+                          </button>
+                        </div>
+
+                        {/* OSPE Mode Selection (Visible when Yes is selected) */}
+                        {item.ospe && (
+                          <div
+                            className="d-flex align-items-center gap-2 p-2 rounded-2 border animate-fade-in"
+                            style={{
+                              backgroundColor: "#f8fafc",
+                              borderColor: "#e2e8f0",
+                              fontSize: "12px",
+                            }}
+                          >
+                            <span className="text-muted fw-semibold">Mode:</span>
+                            <div className="form-check form-check-inline m-0 d-flex align-items-center gap-1">
+                              <input
+                                className="form-check-input"
+                                type="radio"
+                                name={`ospeType_${index}`}
+                                id={`ospeType_sep_${index}`}
+                                value="separated"
+                                checked={item.ospeType !== "combined"}
+                                onChange={() =>
+                                  updateSubject(index, "ospeType", "separated")
+                                }
+                                style={{ cursor: "pointer" }}
+                              />
+                              <label
+                                className="form-check-label text-dark fw-medium"
+                                htmlFor={`ospeType_sep_${index}`}
+                                style={{ cursor: "pointer" }}
+                              >
+                                Separated
+                              </label>
+                            </div>
+                            <div className="form-check form-check-inline m-0 d-flex align-items-center gap-1">
+                              <input
+                                className="form-check-input"
+                                type="radio"
+                                name={`ospeType_${index}`}
+                                id={`ospeType_comb_${index}`}
+                                value="combined"
+                                checked={item.ospeType === "combined"}
+                                onChange={() =>
+                                  updateSubject(index, "ospeType", "combined")
+                                }
+                                style={{ cursor: "pointer" }}
+                              />
+                              <label
+                                className="form-check-label text-dark fw-medium"
+                                htmlFor={`ospeType_comb_${index}`}
+                                style={{ cursor: "pointer" }}
+                              >
+                                Combined
+                              </label>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -249,9 +320,15 @@ export default function CsSection() {
         </Modal.Header>
 
         <Modal.Body style={{ maxHeight: "68vh", overflowY: "auto" }}>
-          <div className="p-3 mb-3 rounded-3 bg-light border text-muted d-flex align-items-center gap-2" style={{ fontSize: "12.5px" }}>
+          <div
+            className="p-3 mb-3 rounded-3 bg-light border text-muted d-flex align-items-center gap-2"
+            style={{ fontSize: "12.5px" }}
+          >
             <LuCircleAlert size={16} className="text-primary flex-shrink-0" />
-            <span>Scores entered above these limits in uploaded spreadsheets will automatically highlight in light red.</span>
+            <span>
+              Scores entered above these limits in uploaded spreadsheets will
+              automatically highlight in light red.
+            </span>
           </div>
 
           <div className="d-flex flex-column gap-3">
@@ -262,19 +339,40 @@ export default function CsSection() {
               >
                 <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
                   <div className="d-flex align-items-center gap-2">
-                    <span className="badge bg-dark text-white rounded-circle" style={{ width: "22px", height: "22px", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "11px" }}>
+                    <span
+                      className="badge bg-dark text-white rounded-circle"
+                      style={{
+                        width: "22px",
+                        height: "22px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "11px",
+                      }}
+                    >
                       {idx + 1}
                     </span>
-                    <span className="fw-bold text-dark" style={{ fontSize: "14px" }}>
+                    <span
+                      className="fw-bold text-dark"
+                      style={{ fontSize: "14px" }}
+                    >
                       {subj.subject || `Subject ${idx + 1}`}
                     </span>
                   </div>
                   {subj.ospe ? (
-                    <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1" style={{ fontSize: "11px" }}>
-                      Theory + OSPE
+                    <span
+                      className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1"
+                      style={{ fontSize: "11px" }}
+                    >
+                      {subj.ospeType === "combined"
+                        ? "Theory + OSPE (Combined)"
+                        : "Theory + OSPE (Separated)"}
                     </span>
                   ) : (
-                    <span className="badge bg-light text-muted border px-2 py-1" style={{ fontSize: "11px" }}>
+                    <span
+                      className="badge bg-light text-muted border px-2 py-1"
+                      style={{ fontSize: "11px" }}
+                    >
                       Theory Only
                     </span>
                   )}

@@ -17,34 +17,71 @@ const parseRollNumber = (value) => {
   return Number.isFinite(numeric) ? numeric : null;
 };
 
-// ── UPDATED buildColumns ──────────────────────────────────────────────
-const buildColumns = (subjects) =>
+// ── buildColumns supporting per-subject ospeType ─────────────────────
+export const buildColumns = (subjects) =>
   (subjects || []).flatMap((s) => {
+    const baseMid = Number(s.maxMid) || 0;
+    const baseFinal = Number(s.maxFinal) || 0;
+    const ospeMid = s.ospe
+      ? (s.ospeMaxMid !== undefined && s.ospeMaxMid !== ""
+          ? Number(s.ospeMaxMid) || 0
+          : baseMid)
+      : 0;
+    const ospeFinal = s.ospe
+      ? (s.ospeMaxFinal !== undefined && s.ospeMaxFinal !== ""
+          ? Number(s.ospeMaxFinal) || 0
+          : baseFinal)
+      : 0;
+
+    // Combined OSPE
+    if (s.ospe && s.ospeType === "combined") {
+      return [
+        {
+          label: `${s.subject} + OSPE`,
+          key: `${s.subject}-combined`,
+          isCombined: true,
+          subjectBase: s.subject,
+          maxMid: baseMid + ospeMid,
+          maxFinal: baseFinal + ospeFinal,
+          theoryMaxMid: baseMid,
+          theoryMaxFinal: baseFinal,
+          ospeMaxMid: ospeMid,
+          ospeMaxFinal: ospeFinal,
+        },
+      ];
+    }
+
+    // Separated OSPE or no OSPE
     const base = [
       {
         label: s.subject,
         key: s.subject,
-        maxMid: Number(s.maxMid) || 0,
-        maxFinal: Number(s.maxFinal) || 0,
+        maxMid: baseMid,
+        maxFinal: baseFinal,
       },
     ];
     if (s.ospe) {
       base.push({
-        label: `${s.subject} - OSPE`,
+        label: `${s.subject} + OSPE`,
         key: `${s.subject}-ospe`,
-        maxMid: (Number(s.ospeMaxMid) ?? Number(s.maxMid)) || 0,
-        maxFinal: (Number(s.ospeMaxFinal) ?? Number(s.maxFinal)) || 0,
+        subjectBase: s.subject,
+        isOspeSeparated: true,
+        maxMid: ospeMid,
+        maxFinal: ospeFinal,
       });
     }
     return base;
   });
-// ────────────────────────────────────────────────────────────────────────
 
 const possibleKeysForColumn = (label) => {
   const l = norm(label);
-  if (l.endsWith("- ospe") || l.includes(" - ospe")) {
+  if (l.endsWith("+ ospe") || l.includes("+ ospe")) {
+    const base = l.replace(/\s*\+\s*ospe\s*$/, "").trim();
+    return [l, `${base} + ospe`, `${base}+ospe`, `${base} - ospe`, `${base}-ospe`];
+  }
+  if (l.endsWith("- ospe") || l.includes("- ospe")) {
     const base = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-    return [l, `${base} - ospe`, `${base}-ospe`];
+    return [l, `${base} - ospe`, `${base}-ospe`, `${base} + ospe`, `${base}+ospe`];
   }
   return [l];
 };
@@ -59,7 +96,7 @@ export const processStudents = (studentsData) => {
     if (bRoll !== null) return 1;
 
     return String(a?.rollNumber || "").localeCompare(
-      String(b?.rollNumber || ""),
+      String(b?.rollNumber || "")
     );
   });
 
@@ -78,6 +115,32 @@ export const processStudents = (studentsData) => {
   });
 };
 
+function findTheoryEntry(subjects, subjectBase) {
+  const baseNorm = norm(subjectBase);
+  return (subjects || []).find((s) => {
+    if (!s) return false;
+    const sName = norm(
+      s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+    );
+    return sName === baseNorm && !sName.includes("ospe");
+  });
+}
+
+function findOspeEntry(subjects, subjectBase) {
+  const baseNorm = norm(subjectBase);
+  return (subjects || []).find((s) => {
+    if (!s) return false;
+    const sName = norm(
+      s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+    );
+    return (
+      sName.includes("ospe") &&
+      (sName.includes(baseNorm) ||
+        sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim() === baseNorm)
+    );
+  });
+}
+
 // ── buildRowValues (for full marks sheet) ────────────────────────────
 const buildRowValues = (student, columns) => {
   const base = [
@@ -95,6 +158,50 @@ const buildRowValues = (student, columns) => {
   const exceedFlags = [];
 
   columns.forEach((col) => {
+    if (col.isCombined) {
+      const theorySubj = findTheoryEntry(student.subjects, col.subjectBase);
+      const ospeSubj = findOspeEntry(student.subjects, col.subjectBase);
+
+      const isTheoryNA =
+        theorySubj &&
+        (String(theorySubj.mid ?? "").toUpperCase() === "NA" ||
+          String(theorySubj.final ?? "").toUpperCase() === "NA");
+      const isOspeNA =
+        ospeSubj &&
+        (String(ospeSubj.mid ?? "").toUpperCase() === "NA" ||
+          String(ospeSubj.final ?? "").toUpperCase() === "NA");
+
+      if (isTheoryNA || isOspeNA) {
+        marksCells.push("NA", "NA", "NA");
+        exceedFlags.push(false, false, false);
+        return;
+      }
+
+      if (!theorySubj && !ospeSubj) {
+        marksCells.push("NA", "NA", "NA");
+        exceedFlags.push(false, false, false);
+        return;
+      }
+
+      const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
+      const tFinal = theorySubj ? parseFloat(theorySubj.final) : NaN;
+      const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
+      const oFinal = ospeSubj ? parseFloat(ospeSubj.final) : NaN;
+
+      const combinedMid = (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
+      const combinedFinal =
+        (!isNaN(tFinal) ? tFinal : 0) + (!isNaN(oFinal) ? oFinal : 0);
+      const combinedTotal = combinedMid + combinedFinal;
+
+      const midExceeds = col.maxMid > 0 && combinedMid > col.maxMid;
+      const finalExceeds = col.maxFinal > 0 && combinedFinal > col.maxFinal;
+
+      marksCells.push(combinedMid, combinedFinal, combinedTotal);
+      exceedFlags.push(midExceeds, finalExceeds, false);
+      return;
+    }
+
+    // Separated column
     const keys = possibleKeysForColumn(col.label);
 
     const matchedSubject = (
@@ -102,7 +209,7 @@ const buildRowValues = (student, columns) => {
     ).find((s) => {
       if (!s) return false;
       const subjectName = norm(
-        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "",
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
       );
       return keys.includes(subjectName);
     });
@@ -143,8 +250,11 @@ const buildRowValues = (student, columns) => {
 
 const computeTotal = (subj) => {
   if (!subj) return "NA";
-  // If either mid or final is "NA" (absent), total is also NA
-  if (String(subj.mid ?? "").toUpperCase() === "NA" || String(subj.final ?? "").toUpperCase() === "NA") return "NA";
+  if (
+    String(subj.mid ?? "").toUpperCase() === "NA" ||
+    String(subj.final ?? "").toUpperCase() === "NA"
+  )
+    return "NA";
   const mid = parseFloat(subj.mid);
   const final = parseFloat(subj.final);
   if (!isNaN(mid) && !isNaN(final)) return mid + final;
@@ -157,7 +267,7 @@ const styleDataRow = (
   totalCols,
   isRA,
   borderAll,
-  exceedFlags,
+  exceedFlags
 ) => {
   const row = ws.getRow(rowNumber);
   row.height = 18;
@@ -370,7 +480,7 @@ export async function exportMarksSheetXlsx({
       totalCols,
       student.isRA,
       borderAll,
-      exceedFlags,
+      exceedFlags
     );
   });
 
@@ -408,18 +518,18 @@ export async function exportMarksSheetXlsx({
     new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
-    fileName,
+    fileName
   );
 }
 
 // ── MID-ONLY EXPORT (used in zip) ─────────────────────────────────────
 
-async function createMidOnlyWorkbook({
+export async function createMidOnlyWorkbook({
   subjects,
   studentsData,
   sheetName = "Mid Marks",
 }) {
-  const columns = buildColumns(subjects); // uses updated buildColumns
+  const columns = buildColumns(subjects);
   const processedStudents = processStudents(studentsData);
   const totalCols = 8 + columns.length;
 
@@ -496,6 +606,7 @@ async function createMidOnlyWorkbook({
 
   let startCol = 9;
   columns.forEach((col) => {
+    ws.mergeCells(headerRow1, startCol, headerRow2, startCol);
     const labelCell = ws.getCell(headerRow1, startCol);
     labelCell.value = normalize(col.label);
     labelCell.font = { bold: true };
@@ -504,11 +615,6 @@ async function createMidOnlyWorkbook({
       horizontal: "center",
       wrapText: true,
     };
-
-    const midCell = ws.getCell(headerRow2, startCol);
-    midCell.value = "Mid";
-    midCell.font = { bold: true };
-    midCell.alignment = { vertical: "middle", horizontal: "center" };
 
     startCol += 1;
   });
@@ -562,7 +668,7 @@ async function createMidOnlyWorkbook({
       excelRowIndex,
       student.isRA,
       borderAll,
-      exceedFlags,
+      exceedFlags
     );
   });
 
@@ -591,6 +697,40 @@ function buildRowValuesMidOnly(student, columns) {
   const exceedFlags = [];
 
   columns.forEach((col) => {
+    if (col.isCombined) {
+      const theorySubj = findTheoryEntry(student.subjects, col.subjectBase);
+      const ospeSubj = findOspeEntry(student.subjects, col.subjectBase);
+
+      const isTheoryNA =
+        theorySubj &&
+        (String(theorySubj.mid ?? "").toUpperCase() === "NA" ||
+          String(theorySubj.final ?? "").toUpperCase() === "NA");
+      const isOspeNA =
+        ospeSubj &&
+        (String(ospeSubj.mid ?? "").toUpperCase() === "NA" ||
+          String(ospeSubj.final ?? "").toUpperCase() === "NA");
+
+      if (isTheoryNA || isOspeNA) {
+        marksCells.push("NA");
+        exceedFlags.push(false);
+        return;
+      }
+
+      if (!theorySubj && !ospeSubj) {
+        marksCells.push("NA");
+        exceedFlags.push(false);
+        return;
+      }
+
+      const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
+      const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
+      const combinedMid = (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
+      const midExceeds = col.maxMid > 0 && combinedMid > col.maxMid;
+      marksCells.push(combinedMid);
+      exceedFlags.push(midExceeds);
+      return;
+    }
+
     const keys = possibleKeysForColumn(col.label);
 
     const matchedSubject = (
@@ -598,7 +738,7 @@ function buildRowValuesMidOnly(student, columns) {
     ).find((s) => {
       if (!s) return false;
       const subjectName = norm(
-        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? "",
+        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
       );
       return keys.includes(subjectName);
     });

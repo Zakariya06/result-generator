@@ -19,11 +19,40 @@ const norm = (v) =>
     .trim()
     .toLowerCase();
 
-const buildColumns = (subjects) =>
+export const buildColumns = (subjects) =>
   (subjects || []).flatMap((s) => {
     const baseMid = Number(s.maxMid) || 0;
     const baseFinal = Number(s.maxFinal) || 0;
+    const ospeMid = s.ospe
+      ? (s.ospeMaxMid !== undefined && s.ospeMaxMid !== ""
+          ? Number(s.ospeMaxMid) || 0
+          : baseMid)
+      : 0;
+    const ospeFinal = s.ospe
+      ? (s.ospeMaxFinal !== undefined && s.ospeMaxFinal !== ""
+          ? Number(s.ospeMaxFinal) || 0
+          : baseFinal)
+      : 0;
 
+    // Check if this subject has combined OSPE
+    if (s.ospe && s.ospeType === "combined") {
+      return [
+        {
+          label: `${s.subject} + OSPE`,
+          key: `${s.subject}-combined`,
+          isCombined: true,
+          subjectBase: s.subject,
+          maxMid: baseMid + ospeMid,
+          maxFinal: baseFinal + ospeFinal,
+          theoryMaxMid: baseMid,
+          theoryMaxFinal: baseFinal,
+          ospeMaxMid: ospeMid,
+          ospeMaxFinal: ospeFinal,
+        },
+      ];
+    }
+
+    // Otherwise separated OSPE or no OSPE
     const base = [
       {
         label: s.subject,
@@ -33,11 +62,15 @@ const buildColumns = (subjects) =>
       },
     ];
     if (s.ospe) {
+      // User specified: If separated OSPE is chosen, create two columns:
+      // one with the subject name alone and another with "Subject name + OSPE"
       base.push({
-        label: `${s.subject} - OSPE`,
+        label: `${s.subject} + OSPE`,
         key: `${s.subject}-ospe`,
-        maxMid: s.ospeMaxMid !== undefined && s.ospeMaxMid !== "" ? Number(s.ospeMaxMid) || 0 : baseMid,
-        maxFinal: s.ospeMaxFinal !== undefined && s.ospeMaxFinal !== "" ? Number(s.ospeMaxFinal) || 0 : baseFinal,
+        subjectBase: s.subject,
+        isOspeSeparated: true,
+        maxMid: ospeMid,
+        maxFinal: ospeFinal,
       });
     }
     return base;
@@ -45,9 +78,13 @@ const buildColumns = (subjects) =>
 
 const possibleKeysForColumn = (label) => {
   const l = norm(label);
-  if (l.endsWith("- ospe") || l.includes(" - ospe")) {
+  if (l.endsWith("+ ospe") || l.includes("+ ospe")) {
+    const b = l.replace(/\s*\+\s*ospe\s*$/, "").trim();
+    return [l, `${b} + ospe`, `${b}+ospe`, `${b} - ospe`, `${b}-ospe`];
+  }
+  if (l.endsWith("- ospe") || l.includes("- ospe")) {
     const b = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-    return [l, `${b} - ospe`, `${b}-ospe`];
+    return [l, `${b} - ospe`, `${b}-ospe`, `${b} + ospe`, `${b}+ospe`];
   }
   return [l];
 };
@@ -58,19 +95,62 @@ const checkStudentFailed = (student, columns) => {
   let hasAnyMarks = false;
 
   columns.forEach((item) => {
-    const keys = possibleKeysForColumn(item.label);
-    const matchedSubject = (student.subjects || []).find((s) => {
-      if (!s) return false;
-      const subjectName = norm(s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title);
-      return keys.includes(subjectName);
-    });
+    let obtained = NaN;
+    let maxTotal = item.maxMid + item.maxFinal;
 
-    if (!matchedSubject) return;
+    if (item.isCombined) {
+      // Find theory entry
+      const baseNorm = norm(item.subjectBase);
+      const theorySubj = (student.subjects || []).find((s) => {
+        if (!s) return false;
+        const sName = norm(
+          s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+        );
+        return sName === baseNorm && !sName.includes("ospe");
+      });
+      // Find ospe entry
+      const ospeSubj = (student.subjects || []).find((s) => {
+        if (!s) return false;
+        const sName = norm(
+          s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+        );
+        return (
+          sName.includes("ospe") &&
+          (sName.includes(baseNorm) ||
+            sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim() === baseNorm)
+        );
+      });
 
-    const maxTotal = item.maxMid + item.maxFinal;
-    const mid = parseFloat(matchedSubject.mid);
-    const final = parseFloat(matchedSubject.final);
-    const obtained = (!isNaN(mid) && !isNaN(final)) ? mid + final : parseFloat(matchedSubject.total);
+      const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
+      const tFinal = theorySubj ? parseFloat(theorySubj.final) : NaN;
+      const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
+      const oFinal = ospeSubj ? parseFloat(ospeSubj.final) : NaN;
+
+      const combinedMid = (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
+      const combinedFinal =
+        (!isNaN(tFinal) ? tFinal : 0) + (!isNaN(oFinal) ? oFinal : 0);
+
+      if (!isNaN(tMid) || !isNaN(oMid) || !isNaN(tFinal) || !isNaN(oFinal)) {
+        obtained = combinedMid + combinedFinal;
+      }
+    } else {
+      const keys = possibleKeysForColumn(item.label);
+      const matchedSubject = (student.subjects || []).find((s) => {
+        if (!s) return false;
+        const subjectName = norm(
+          s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title
+        );
+        return keys.includes(subjectName);
+      });
+
+      if (!matchedSubject) return;
+      const mid = parseFloat(matchedSubject.mid);
+      const final = parseFloat(matchedSubject.final);
+      obtained =
+        !isNaN(mid) && !isNaN(final)
+          ? mid + final
+          : parseFloat(matchedSubject.total);
+    }
 
     if (!isNaN(obtained)) {
       hasAnyMarks = true;
@@ -81,7 +161,9 @@ const checkStudentFailed = (student, columns) => {
     }
   });
 
-  return hasAnyMarks && totalApplicable > 0 && failed >= Math.ceil(totalApplicable / 2);
+  return (
+    hasAnyMarks && totalApplicable > 0 && failed >= Math.ceil(totalApplicable / 2)
+  );
 };
 
 const SheetTable = ({
@@ -104,7 +186,7 @@ const SheetTable = ({
       if (bRoll !== null) return 1;
 
       return String(a?.rollNumber || "").localeCompare(
-        String(b?.rollNumber || ""),
+        String(b?.rollNumber || "")
       );
     });
 
@@ -168,19 +250,29 @@ const SheetTable = ({
     });
   }, [studentsData, columns, searchQuery, statusFilter, instituteFilter]);
 
-  const hasActiveFilters = searchQuery.trim() !== "" || statusFilter !== "all" || instituteFilter !== "all";
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    statusFilter !== "all" ||
+    instituteFilter !== "all";
+
+
+    console.log("All Data===", processedStudents)
 
   return (
     <table className="customTable resultTable" style={{ textWrap: "nowrap" }}>
       <thead>
         <tr>
-          <th rowSpan="2" style={{ width: "50px" }}>S#</th>
+          <th rowSpan="2" style={{ width: "50px" }}>
+            S#
+          </th>
           <th rowSpan="2">Roll #</th>
           <th rowSpan="2">Student Name</th>
           <th rowSpan="2">Father's Name</th>
           <th rowSpan="2">Registration</th>
           <th rowSpan="2">Discipline</th>
-          <th rowSpan="2" style={{ width: "110px" }}>Type</th>
+          <th rowSpan="2" style={{ width: "110px" }}>
+            Type
+          </th>
           <th rowSpan="2">Institute</th>
 
           {columns.map((col) => (
@@ -193,8 +285,12 @@ const SheetTable = ({
               {col.label}
             </th>
           ))}
-          <th rowSpan="2" className="text-center" style={{ width: "80px" }}>Status</th>
-          <th rowSpan="2" className="text-center" style={{ width: "70px" }}>Action</th>
+          <th rowSpan="2" className="text-center" style={{ width: "80px" }}>
+            Status
+          </th>
+          <th rowSpan="2" className="text-center" style={{ width: "70px" }}>
+            Action
+          </th>
         </tr>
 
         <tr>
@@ -209,13 +305,20 @@ const SheetTable = ({
       </thead>
 
       <tbody>
-        {processedStudents.length === 0 && (studentsData?.length > 0) ? (
+        {processedStudents.length === 0 && studentsData?.length > 0 ? (
           <tr>
             <td colSpan={10 + columns.length * 3} className="text-center py-5">
               <div className="d-flex flex-column align-items-center justify-content-center text-muted">
-                <LuSearchX size={36} className="mb-2 text-secondary opacity-50" />
-                <h6 className="fw-bold text-dark mb-1">No matching student records found</h6>
-                <p className="small mb-3">No students match your active search or filter criteria.</p>
+                <LuSearchX
+                  size={36}
+                  className="mb-2 text-secondary opacity-50"
+                />
+                <h6 className="fw-bold text-dark mb-1">
+                  No matching student records found
+                </h6>
+                <p className="small mb-3">
+                  No students match your active search or filter criteria.
+                </p>
                 {hasActiveFilters && onResetFilters && (
                   <button
                     onClick={onResetFilters}

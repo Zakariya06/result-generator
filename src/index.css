@@ -1059,9 +1059,9 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-thumb:hover {
 }
 
 .dmc-calligraphy-title {
-  font-family: 'Cinzel Decorative', 'Cinzel', serif;
-  font-size: 26px;
-  font-weight: 900;
+     font-family: fangsong;
+    font-size: 26px;
+    font-weight: 900;
   color: #881337;
   letter-spacing: 2.5px;
   text-transform: uppercase;
@@ -1337,7 +1337,18 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-thumb:hover {
   border-top: 1.5px solid #0f172a;
   margin-bottom: 6px;
   position: relative;
-  height: 35px;
+  min-height: 38px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sig-img {
+  max-height: 36px;
+  max-width: 140px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 2px;
 }
 
 .sig-sketch {
@@ -1345,6 +1356,27 @@ div[style*="overflow-x: auto"]::-webkit-scrollbar-thumb:hover {
   bottom: 2px;
   left: 50%;
   transform: translateX(-50%);
+}
+
+.btn-dmc-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-dmc-action:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 
 .sig-title {
