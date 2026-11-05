@@ -5,6 +5,12 @@ import SheetTable from "../components/SheetTable";
 import { useSubject } from "../context/SubjectContext";
 import TableHeader from "../components/TableHeader";
 import {
+  buildEvaluationColumns,
+  evaluateStudentPassFail,
+  isStudentMissingMid,
+  isStudentMissingFinal,
+} from "../utils/studentEvaluation";
+import {
   LuUsers,
   LuCircleCheck,
   LuTriangleAlert,
@@ -48,44 +54,19 @@ export default function MarksSheet() {
     // Count passed / failed
     let passed = 0;
     let failed = 0;
+    let missingMid = 0;
+    let missingFinal = 0;
 
-    // Approximate pass/fail tally for overview metrics
+    // Pass/fail and missing marks tally for overview metrics
+    const evalColumns = buildEvaluationColumns(subjects);
+
     list.forEach((s) => {
-      const studentSubjects = s.subjects || [];
-      if (!studentSubjects.length) return;
+      if (isStudentMissingMid(s)) missingMid++;
+      if (isStudentMissingFinal(s)) missingFinal++;
 
-      let appCount = 0;
-      let failCount = 0;
-      let hasMarks = false;
-
-      studentSubjects.forEach((subj) => {
-        const mid = parseFloat(subj.mid);
-        const final = parseFloat(subj.final);
-        const totalMarks = (!isNaN(mid) && !isNaN(final)) ? mid + final : parseFloat(subj.total);
-
-        const matchSubject = subjects.find(
-          (sub) =>
-            sub.subject.toLowerCase() ===
-            String(subj.subject || subj.label || "").toLowerCase()
-        );
-        const maxMid = matchSubject ? Number(matchSubject.maxMid) || 50 : 50;
-        const maxFinal = matchSubject ? Number(matchSubject.maxFinal) || 50 : 50;
-        const maxTotal = maxMid + maxFinal;
-
-        if (!isNaN(totalMarks)) {
-          hasMarks = true;
-          appCount++;
-          if (maxTotal > 0 && totalMarks < maxTotal * 0.5) {
-            failCount++;
-          }
-        }
-      });
-
-      if (hasMarks && appCount > 0 && failCount >= Math.ceil(appCount / 2)) {
-        failed++;
-      } else if (hasMarks && appCount > 0) {
-        passed++;
-      }
+      const res = evaluateStudentPassFail(s, evalColumns);
+      if (res.isPassed) passed++;
+      else if (res.isFailed) failed++;
     });
 
     const passRate = total > 0 ? ((passed / total) * 100).toFixed(1) : 0;
@@ -96,6 +77,8 @@ export default function MarksSheet() {
       reappear,
       passed,
       failed,
+      missingMid,
+      missingFinal,
       passRate,
       institutes: Array.from(institutes).sort(),
     };
@@ -137,7 +120,7 @@ export default function MarksSheet() {
             </span>
           </div>
           <h2 className="fw-bold mb-0 text-dark" style={{ fontSize: "24px", letterSpacing: "-0.02em" }}>
-            Consolidated Marks Sheet & Analytics
+            Consolidated Combine Sheet & Analytics
           </h2>
         </div>
 
@@ -256,52 +239,30 @@ export default function MarksSheet() {
               )}
             </div>
 
-            {/* Quick Status Filters */}
-            <div className="sc-filter-tabs">
-              <button
-                type="button"
-                className={`sc-filter-btn ${statusFilter === "all" ? "active" : ""}`}
-                onClick={() => setStatusFilter("all")}
+            {/* Status & Marks Completion Filter Dropdown (left of Institute) */}
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <select
+                className="sc-select"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{ minWidth: "210px" }}
               >
-                All ({metrics.total})
-              </button>
-              <button
-                type="button"
-                className={`sc-filter-btn ${statusFilter === "passed" ? "active" : ""}`}
-                onClick={() => setStatusFilter("passed")}
-              >
-                Passed ({metrics.passed})
-              </button>
-              <button
-                type="button"
-                className={`sc-filter-btn ${statusFilter === "failed" ? "active" : ""}`}
-                onClick={() => setStatusFilter("failed")}
-              >
-                Failed ({metrics.failed})
-              </button>
-              <button
-                type="button"
-                className={`sc-filter-btn ${statusFilter === "regular" ? "active" : ""}`}
-                onClick={() => setStatusFilter("regular")}
-              >
-                Regular ({metrics.regular})
-              </button>
-              <button
-                type="button"
-                className={`sc-filter-btn ${statusFilter === "reappear" ? "active" : ""}`}
-                onClick={() => setStatusFilter("reappear")}
-              >
-                Re-appear ({metrics.reappear})
-              </button>
-            </div>
+                <option value="all">All Candidates ({metrics.total})</option>
+                <option value="passed">Passed Candidates ({metrics.passed})</option>
+                <option value="failed">Failed Candidates ({metrics.failed})</option>
+                <option value="regular">Regular Students ({metrics.regular})</option>
+                <option value="reappear">Re-appear Students ({metrics.reappear})</option>
+                <option value="missing_mid">⚠️ Missing Mid Marks ({metrics.missingMid})</option>
+                <option value="missing_final">⚠️ Missing Final Marks ({metrics.missingFinal})</option>
+              </select>
 
-            {/* Institute Filter */}
-            {metrics.institutes.length > 1 && (
-              <div className="d-flex align-items-center gap-2">
+              {/* Institute Filter */}
+              {metrics.institutes.length > 1 && (
                 <select
                   className="sc-select"
                   value={instituteFilter}
                   onChange={(e) => setInstituteFilter(e.target.value)}
+                  style={{ minWidth: "200px" }}
                 >
                   <option value="all">All Institutes ({metrics.institutes.length})</option>
                   {metrics.institutes.map((inst) => (
@@ -310,19 +271,19 @@ export default function MarksSheet() {
                     </option>
                   ))}
                 </select>
+              )}
 
-                {hasActiveFilters && (
-                  <button
-                    onClick={handleResetFilters}
-                    className="btn-sc btn-sc-ghost btn-sc-sm text-muted"
-                    title="Reset all filters"
-                  >
-                    <LuX size={14} />
-                    <span>Reset</span>
-                  </button>
-                )}
-              </div>
-            )}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleResetFilters}
+                  className="btn-sc btn-sc-ghost btn-sc-sm text-muted"
+                  title="Reset all filters"
+                >
+                  <LuX size={14} />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 

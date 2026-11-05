@@ -2,6 +2,11 @@ import React, { useMemo } from "react";
 import { useSubject } from "../context/SubjectContext";
 import TableRows from "./tableItems/TableRows";
 import { LuSearchX, LuFilterX } from "react-icons/lu";
+import {
+  evaluateStudentPassFail,
+  isStudentMissingMid,
+  isStudentMissingFinal,
+} from "../utils/studentEvaluation";
 
 const hasRA = (rollNumber) =>
   String(rollNumber || "")
@@ -33,6 +38,7 @@ export const buildColumns = (subjects) =>
           ? Number(s.ospeMaxFinal) || 0
           : baseFinal)
       : 0;
+    const passPercentage = Number(s.passPercentage) || 50;
 
     // Check if this subject has combined OSPE
     if (s.ospe && s.ospeType === "combined") {
@@ -48,6 +54,7 @@ export const buildColumns = (subjects) =>
           theoryMaxFinal: baseFinal,
           ospeMaxMid: ospeMid,
           ospeMaxFinal: ospeFinal,
+          passPercentage,
         },
       ];
     }
@@ -57,13 +64,13 @@ export const buildColumns = (subjects) =>
       {
         label: s.subject,
         key: s.subject,
+        subjectBase: s.subject,
         maxMid: baseMid,
         maxFinal: baseFinal,
+        passPercentage,
       },
     ];
     if (s.ospe) {
-      // User specified: If separated OSPE is chosen, create two columns:
-      // one with the subject name alone and another with "Subject name + OSPE"
       base.push({
         label: `${s.subject} + OSPE`,
         key: `${s.subject}-ospe`,
@@ -71,6 +78,7 @@ export const buildColumns = (subjects) =>
         isOspeSeparated: true,
         maxMid: ospeMid,
         maxFinal: ospeFinal,
+        passPercentage,
       });
     }
     return base;
@@ -155,7 +163,8 @@ const checkStudentFailed = (student, columns) => {
     if (!isNaN(obtained)) {
       hasAnyMarks = true;
       totalApplicable++;
-      if (maxTotal > 0 && obtained < maxTotal * 0.5) {
+      const minPassThreshold = maxTotal * ((item.passPercentage || 50) / 100);
+      if (maxTotal > 0 && obtained < minPassThreshold) {
         failed++;
       }
     }
@@ -202,13 +211,15 @@ const SheetTable = ({
       const currentSerial = (countsByGroup.get(groupKey) || 0) + 1;
       countsByGroup.set(groupKey, currentSerial);
 
-      const isFailed = checkStudentFailed(student, columns);
+      const evalRes = evaluateStudentPassFail(student, columns);
 
       return {
         ...student,
         serial: currentSerial,
         isRA,
-        isFailed,
+        isPassed: evalRes.isPassed,
+        isFailed: evalRes.isFailed,
+        isPending: evalRes.isPending,
       };
     });
 
@@ -235,11 +246,13 @@ const SheetTable = ({
         if (!matchesSearch) return false;
       }
 
-      // 2. Status filter
-      if (statusFilter === "passed" && student.isFailed) return false;
+      // 2. Status & Missing Marks filter
+      if (statusFilter === "passed" && !student.isPassed) return false;
       if (statusFilter === "failed" && !student.isFailed) return false;
       if (statusFilter === "regular" && student.isRA) return false;
       if (statusFilter === "reappear" && !student.isRA) return false;
+      if (statusFilter === "missing_mid" && !isStudentMissingMid(student)) return false;
+      if (statusFilter === "missing_final" && !isStudentMissingFinal(student)) return false;
 
       // 3. Institute filter
       if (instituteFilter !== "all" && student.institute !== instituteFilter) {

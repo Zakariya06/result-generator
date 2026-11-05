@@ -16,7 +16,9 @@ export default function ExcelDropzone({ label, onData, multiple = true }) {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-        allData.push({ fileName: file.name, data: json });
+        // Also keep raw array-of-arrays for parsers that need positional access
+        const rawData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+        allData.push({ fileName: file.name, data: json, rawData });
       }
 
       onData(allData); // returns array of objects [{ fileName, data }]

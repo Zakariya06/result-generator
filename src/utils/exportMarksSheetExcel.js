@@ -606,7 +606,7 @@ export async function createMidOnlyWorkbook({
 
   let startCol = 9;
   columns.forEach((col) => {
-    ws.mergeCells(headerRow1, startCol, headerRow2, startCol);
+    // Subject title in Row 4 (headerRow1)
     const labelCell = ws.getCell(headerRow1, startCol);
     labelCell.value = normalize(col.label);
     labelCell.font = { bold: true };
@@ -614,6 +614,16 @@ export async function createMidOnlyWorkbook({
       vertical: "middle",
       horizontal: "center",
       wrapText: true,
+    };
+
+    // Sub-header "Mid" in Row 5 (headerRow2) for upload format compatibility
+    const midCell = ws.getCell(headerRow2, startCol);
+    midCell.value = "Mid";
+    midCell.font = { bold: true };
+    midCell.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+      wrapText: false,
     };
 
     startCol += 1;

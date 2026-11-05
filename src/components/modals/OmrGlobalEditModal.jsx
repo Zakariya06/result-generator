@@ -153,20 +153,6 @@ export default function OmrGlobalEditModal({
             <LuImage size={15} className="me-1 mb-1" />
             2. Three Signatures (Upload)
           </button>
-
-          <button
-            type="button"
-            className={`btn btn-link text-decoration-none px-3 py-2 fw-semibold ${
-              activeTab === "credits"
-                ? "text-primary border-bottom border-primary border-3"
-                : "text-muted"
-            }`}
-            style={{ fontSize: "13.5px" }}
-            onClick={() => setActiveTab("credits")}
-          >
-            <LuBookOpen size={15} className="me-1 mb-1" />
-            3. Credit Hours & Layout
-          </button>
         </div>
 
         <div className="p-4" style={{ maxHeight: "70vh", overflowY: "auto" }}>
@@ -506,106 +492,6 @@ export default function OmrGlobalEditModal({
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 3: Credit Hours per Subject & Table Column Mode */}
-          {activeTab === "credits" && (
-            <div className="d-flex flex-column gap-3">
-              <div className="alert alert-secondary bg-light border py-2 px-3">
-                <small className="text-dark">
-                  <strong>Credit Hours per Subject:</strong> Specify the Credit Hours (e.g. <code>2+1</code>, <code>4+0</code>, <code>3</code>, <code>2</code>) for each subject according to the Nursing & Allied Health Sciences Weightage chart.
-                </small>
-              </div>
-
-              {/* Table Column Mode Selector */}
-              <div className="p-3 border rounded-3 bg-light">
-                <Form.Label className="fw-bold small mb-2 d-block">
-                  Marks Table Column Layout Mode:
-                </Form.Label>
-                <div className="d-flex gap-4">
-                  <Form.Check
-                    type="radio"
-                    id="col-mode-midfinal"
-                    name="columnMode"
-                    label={
-                      <span>
-                        <strong>Midterm & Final (Exact Layout Requested)</strong>
-                        <div className="text-muted small">
-                          TOTAL MARKS (Midterm | Final | Total) & OBTAINED MARKS (Midterm | Final | Total)
-                        </div>
-                      </span>
-                    }
-                    checked={formData.columnMode === "midFinal"}
-                    onChange={() => handleInputChange("columnMode", "midFinal")}
-                  />
-                  <Form.Check
-                    type="radio"
-                    id="col-mode-theoryprac"
-                    name="columnMode"
-                    label={
-                      <span>
-                        <strong>Theory & Practical (Legacy Layout)</strong>
-                        <div className="text-muted small">
-                          TOTAL MARKS (Theory | Prac/Oral | Total) & OBTAINED MARKS
-                        </div>
-                      </span>
-                    }
-                    checked={formData.columnMode === "theoryPrac"}
-                    onChange={() => handleInputChange("columnMode", "theoryPrac")}
-                  />
-                </div>
-              </div>
-
-              {/* Subject Credit Hour Assignments */}
-              <div className="table-responsive border rounded-3">
-                <table className="table table-sm table-hover mb-0 align-middle">
-                  <thead className="table-light">
-                    <tr>
-                      <th style={{ width: "45%" }}>Subject Name</th>
-                      <th style={{ width: "25%" }}>Configured Max Marks</th>
-                      <th style={{ width: "30%" }}>Credit Hours (e.g. 2+1, 3, 4)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(subjects || []).length === 0 ? (
-                      <tr>
-                        <td colSpan="3" className="text-center py-3 text-muted">
-                          No subjects configured yet. Credit hours will be automatically applied once subjects are loaded.
-                        </td>
-                      </tr>
-                    ) : (
-                      subjects.map((s, idx) => {
-                        const sName = s.subject || s.label || `Subject ${idx + 1}`;
-                        const currentVal = formData.creditHoursMap[sName] ?? (s.ospe ? "2+1" : "3");
-                        const maxMid = Number(s.maxMid) || 0;
-                        const maxFinal = Number(s.maxFinal) || 0;
-                        const totalMarks = maxMid + maxFinal;
-
-                        return (
-                          <tr key={idx}>
-                            <td className="fw-semibold text-dark">{sName}</td>
-                            <td className="text-muted small">
-                              {totalMarks > 0 ? `${totalMarks} Marks (Mid: ${maxMid}, Final: ${maxFinal})` : "--"}
-                            </td>
-                            <td>
-                              <Form.Control
-                                type="text"
-                                size="sm"
-                                value={currentVal}
-                                onChange={(e) => handleCreditChange(sName, e.target.value)}
-                                placeholder="e.g. 2+1 or 3"
-                                className="sc-input"
-                                style={{ width: "130px" }}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
               </div>
             </div>
           )}

@@ -18,37 +18,70 @@ export default function FinalMarksUploader({
   // Plain subject names only (OSPE handled via the toggle, not as a separate dropdown row)
   const baseSubjects = subjects.map((s) => s.subject);
 
-  // A subject's final is considered "uploaded" only when it has a real numeric
-  // value. "NA" is automatically set for absent students (not a real upload),
-  // "" and "-" are the blank/pending placeholders.
+  // Helper to check if a subject mark is uploaded
   const finalIsUploaded = (val) => {
     if (val === undefined || val === null || val === "" || val === "-") return false;
-    if (String(val).toUpperCase() === "NA") return false; // absent marker, not a real upload
-    return !isNaN(parseFloat(String(val))); // must be a real number
+    if (String(val).toUpperCase() === "NA") return false;
+    return !isNaN(parseFloat(String(val)));
   };
 
-  // Track which (subject) and which (subject - OSPE) already have real final marks
-  const uploadedPlain = new Set();
-  const uploadedOspe = new Set();
-  (studentsData || []).forEach((student) => {
-    (student.subjects || []).forEach((subj) => {
-      const name = norm(subj?.subject ?? subj?.label ?? subj?.name ?? "");
-      if (!finalIsUploaded(subj?.final)) return;
-      if (name.endsWith("- ospe"))
-        uploadedOspe.add(name.replace(/\s*-\s*ospe$/, ""));
-      else uploadedPlain.add(name);
+  // Compute upload statistics per subject (total applicable students vs filled students)
+  const getSubjectUploadStats = (subjName) => {
+    const targetNorm = norm(subjName);
+    let totalApplicable = 0;
+    let filledCount = 0;
+
+    (studentsData || []).forEach((student) => {
+      (student.subjects || []).forEach((subj) => {
+        const sName = norm(subj?.subject ?? subj?.label ?? subj?.name ?? "");
+        const isOspeSlot = sName.endsWith("- ospe");
+        const cleanName = sName.replace(/\s*-\s*ospe$/, "").trim();
+
+        if (uploadOspe) {
+          // OSPE mode: check slots ending with - ospe
+          if (isOspeSlot && (cleanName === targetNorm || sName.includes(targetNorm))) {
+            totalApplicable++;
+            if (finalIsUploaded(subj.final)) filledCount++;
+          }
+        } else {
+          // Theory mode: check non-ospe slots
+          if (!isOspeSlot && (cleanName === targetNorm || sName === targetNorm)) {
+            totalApplicable++;
+            if (finalIsUploaded(subj.final)) filledCount++;
+          }
+        }
+      });
     });
+
+    const isFullyCompleted = totalApplicable > 0 && filledCount >= totalApplicable;
+    const isPartial = filledCount > 0 && filledCount < totalApplicable;
+
+    return { totalApplicable, filledCount, isFullyCompleted, isPartial };
+  };
+
+  const pendingSubjects = baseSubjects.filter((name) => {
+    const sObj = subjects.find((s) => norm(s.subject) === norm(name));
+    if (!sObj) return false;
+
+    if (uploadOspe) {
+      // In OSPE mode: show subjects that have OSPE (both separated and combined)
+      return Boolean(sObj.ospe);
+    } else {
+      // In Theory mode: show non-OSPE subjects and separated OSPE subjects.
+      // Combined OSPE subjects only show in the OSPE field.
+      if (sObj.ospe && sObj.ospeType === "combined") {
+        return false;
+      }
+      return true;
+    }
   });
 
-  const subjectHasOspe = (name) =>
-    subjects.find((s) => norm(s.subject) === norm(name))?.ospe;
-
-  const isDisabled = (name) =>
-    uploadOspe ? uploadedOspe.has(norm(name)) : uploadedPlain.has(norm(name));
-
-  const pendingSubjects = baseSubjects.filter(
-    (name) => !uploadOspe || subjectHasOspe(name), // hide OSPE option for subjects without OSPE
-  );
+  // Only disable the subject if 100% of applicable students have their marks filled.
+  // Otherwise, keep it enabled so the user can upload files for remaining students/institutes!
+  const isFullyDisabled = (name) => {
+    const stats = getSubjectUploadStats(name);
+    return stats.isFullyCompleted;
+  };
 
   const handleFileData = (allFiles) => {
     if (!selectedSubject) return;
@@ -110,22 +143,50 @@ export default function FinalMarksUploader({
             onChange={(e) => setSelectedSubject(e.target.value)}
           >
             <option value="">— Choose a subject —</option>
-            {pendingSubjects.map((name) => (
-              <option key={name} value={name} disabled={isDisabled(name)}>
-                {name} {isDisabled(name) ? "✓ Uploaded" : ""}
-              </option>
-            ))}
+            {pendingSubjects.map((name) => {
+              const stats = getSubjectUploadStats(name);
+              const isDone = stats.isFullyCompleted;
+              const isPart = stats.isPartial;
+
+              let suffix = "";
+              if (isDone) suffix = " ✓ Completed";
+              else if (isPart) suffix = ` ✓ (${stats.filledCount}/${stats.totalApplicable} filled)`;
+
+              return (
+                <option
+                  key={name}
+                  value={name}
+                  disabled={isDone}
+                  style={
+                    isDone
+                      ? { color: "#9ca3af", background: "#f3f4f6" }
+                      : isPart
+                      ? { color: "#0d9488", fontWeight: "600", background: "#f0fdfa" }
+                      : {}
+                  }
+                >
+                  {name}
+                  {suffix}
+                </option>
+              );
+            })}
           </select>
         </div>
       </div>
 
       {/* ── Dropzone ────────────────────────────────────────────────── */}
-      {selectedSubject && !isDisabled(selectedSubject) && (
+      {selectedSubject && !isFullyDisabled(selectedSubject) && (
         <div className="fmu-dropzone-wrap">
           <div className="fmu-selected-badge">
             <span className="fmu-badge-dot" />
             Uploading {mode} {uploadOspe ? "OSPE" : "final"} marks for:{" "}
             <strong>{selectedSubject}</strong>
+            {getSubjectUploadStats(selectedSubject).isPartial && (
+              <span className="ms-2 badge bg-info text-dark" style={{ fontSize: "11px" }}>
+                {getSubjectUploadStats(selectedSubject).filledCount} /{" "}
+                {getSubjectUploadStats(selectedSubject).totalApplicable} already filled
+              </span>
+            )}
           </div>
 
           <ExcelDropzone

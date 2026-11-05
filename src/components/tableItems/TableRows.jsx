@@ -214,10 +214,11 @@ const TableRows = (props) => {
               const combinedTotal = combinedMid + combinedFinal;
 
               const maxTotal = item.maxMid + item.maxFinal;
+              const minPassThreshold = maxTotal * ((item.passPercentage || 50) / 100);
               if (hasMid || hasFinal) {
                 hasAnyMarksEntered = true;
                 totalApplicableSubjects++;
-                if (maxTotal > 0 && combinedTotal < maxTotal * 0.5) {
+                if (maxTotal > 0 && combinedTotal < minPassThreshold) {
                   failedSubjects++;
                 }
               }
@@ -281,6 +282,7 @@ const TableRows = (props) => {
               item.maxFinal > 0 && !isNaN(finalVal) && finalVal > item.maxFinal;
 
             const maxTotal = item.maxMid + item.maxFinal;
+            const minPassThreshold = maxTotal * ((item.passPercentage || 50) / 100);
             const obtainedTotal = computeTotal(matchedSubject);
             const obtainedMarks =
               typeof obtainedTotal === "number"
@@ -291,7 +293,7 @@ const TableRows = (props) => {
             if (isMarksUploaded) {
               hasAnyMarksEntered = true;
               totalApplicableSubjects++;
-              if (maxTotal > 0 && obtainedMarks < maxTotal * 0.5) {
+              if (maxTotal > 0 && obtainedMarks < minPassThreshold) {
                 failedSubjects++;
               }
             }
@@ -344,15 +346,15 @@ const TableRows = (props) => {
               {subjectCells}
 
               <td className="text-center">
-                {!hasAnyMarksEntered ? (
+                {student.isPending ? (
                   <span className="text-muted fw-semibold">-</span>
                 ) : (
                   <span
                     className={`status-pill ${
-                      isFailed ? "status-failed" : "status-passed"
+                      student.isFailed ? "status-failed" : "status-passed"
                     }`}
                   >
-                    {isFailed ? "NP" : "P"}
+                    {student.isFailed ? "NP" : "P"}
                   </span>
                 )}
               </td>

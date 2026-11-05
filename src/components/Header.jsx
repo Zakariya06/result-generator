@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import logo from "../assets/KMU_logo.jpg";
 import { useSubject } from "../context/SubjectContext";
@@ -21,6 +21,18 @@ const Header = () => {
 
   // "dataOnly" | "fullReset" | null
   const [clearModal, setClearModal] = useState(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowUserDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const isAuthenticated = localStorage.getItem("isAuth") === "true";
   const studentCount = studentsData?.length || 0;
@@ -97,7 +109,7 @@ const Header = () => {
                 }`}
               >
                 <LuFileSpreadsheet size={15} />
-                Marks Sheet
+                Combine Sheet
                 {studentCount > 0 && (
                   <span
                     className="badge bg-primary text-white rounded-pill px-1"
@@ -132,31 +144,9 @@ const Header = () => {
         <div className="sc-header-right">
           {isAuthenticated ? (
             <>
-              {hasUploadedMarks && location.pathname !== "/omr" && (
-                <button
-                  onClick={() => navigate("/omr")}
-                  className="btn-sc btn-sc-primary btn-sc-sm d-flex align-items-center gap-1 shadow-sm"
-                  title="Generate and view individual Detailed Marks Certificates"
-                >
-                  <LuGraduationCap size={15} />
-                  <span>Generate DMC / OMR</span>
-                </button>
-              )}
-
               {location.pathname === "/sheet" && (
                 <div className="d-flex align-items-center gap-2">
-                  {/* Button 1: Existing Clear All (clears uploaded table data only) */}
-                  <button
-                    onClick={() => setClearModal("dataOnly")}
-                    className="btn-sc btn-sc-outline btn-sc-sm text-secondary"
-                    title="Clear uploaded table data only (leaves subjects unchanged)"
-                    disabled={studentCount === 0}
-                  >
-                    <LuTrash2 size={14} className="text-danger" />
-                    <span>Clear All</span>
-                  </button>
-
-                  {/* Button 2: New Full Reset (clears both subjects and all data) */}
+                  {/* Kept only Reset Everything button as requested */}
                   <button
                     onClick={() => setClearModal("fullReset")}
                     className="btn-sc btn-sc-destructive btn-sc-sm"
@@ -168,20 +158,86 @@ const Header = () => {
                 </div>
               )}
 
-              <div className="sc-user-pill d-none d-lg-flex">
-                <div className="sc-avatar">A</div>
-                <span>Administrator</span>
-                <LuShieldCheck size={14} className="text-primary" />
-              </div>
+              {/* Administrator Profile Circle with Dropdown Menu */}
+              <div className="position-relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowUserDropdown((prev) => !prev)}
+                  className="btn p-0 border-0 bg-transparent rounded-circle d-flex align-items-center justify-content-center"
+                  style={{ cursor: "pointer" }}
+                  title="Administrator Profile"
+                >
+                  <div
+                    className="sc-avatar shadow-sm"
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "50%",
+                      backgroundColor: "#1e293b",
+                      color: "#ffffff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: "700",
+                      fontSize: "14px",
+                      border: "2px solid #e2e8f0",
+                    }}
+                  >
+                    A
+                  </div>
+                </button>
 
-              <button
-                onClick={handleLogout}
-                className="btn-sc btn-sc-outline btn-sc-sm text-secondary"
-                title="Sign out of examination portal"
-              >
-                <LuLogOut size={14} />
-                <span className="d-none d-sm-inline">Logout</span>
-              </button>
+                {showUserDropdown && (
+                  <div
+                    className="position-absolute end-0 mt-2 p-3 rounded-3 shadow-lg bg-white border animate-fade-in"
+                    style={{
+                      minWidth: "220px",
+                      zIndex: 1100,
+                    }}
+                  >
+                    <div className="d-flex align-items-center gap-2 pb-2 mb-2 border-bottom">
+                      <div
+                        className="sc-avatar"
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "50%",
+                          backgroundColor: "#2563eb",
+                          color: "#ffffff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: "700",
+                          fontSize: "13px",
+                        }}
+                      >
+                        A
+                      </div>
+                      <div>
+                        <div className="fw-bold text-dark" style={{ fontSize: "13.5px" }}>
+                          Administrator
+                        </div>
+                        <div className="text-muted" style={{ fontSize: "11px" }}>
+                          KMU Controller of Exams
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserDropdown(false);
+                        handleLogout();
+                      }}
+                      className="btn-sc btn-sc-destructive btn-sc-sm w-100 d-flex align-items-center justify-content-center gap-2 mt-2"
+                      style={{ fontSize: "12.5px" }}
+                    >
+                      <LuLogOut size={14} />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <div className="d-flex align-items-center gap-2 text-muted" style={{ fontSize: "12px" }}>

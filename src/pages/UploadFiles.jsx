@@ -211,6 +211,7 @@ export default function UploadFiles() {
         ? formatFinalMarksOnlineOspe(
             allFiles.map((f) => f.data),
             selectedSubject,
+            allFiles.map((f) => f.rawData),   // pass raw array data for OSPE
           )
         : formatFinalMarks(
             allFiles.map((f) => f.data),

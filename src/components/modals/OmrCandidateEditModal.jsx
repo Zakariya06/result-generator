@@ -101,8 +101,15 @@ export default function OmrCandidateEditModal({
     }
 
     const maxMarks = Number(row.totalMax) || (Number(row.midMax) + Number(row.finalMax)) || 0;
+    const matchCfg = (subjects || []).find(
+      (s) =>
+        s.subject &&
+        (norm(s.subject) === norm(row.title) || norm(row.title).includes(norm(s.subject)))
+    );
+    const passP = matchCfg?.passPercentage ?? 50;
+
     const evalResult = !row.isNA && !isNaN(totalObt)
-      ? evaluateSubjectMarks(totalObt, maxMarks)
+      ? evaluateSubjectMarks(totalObt, maxMarks, passP)
       : { isPassed: false, grade: "-", gpa: 0.0, percentage: null };
 
     return {

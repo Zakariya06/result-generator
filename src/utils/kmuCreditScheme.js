@@ -5,23 +5,23 @@
 
 // Official weightage table from KMU Marks Distribution Table
 export const KMU_CREDIT_HOUR_SCHEME = [
-  { cr: "0+5", total: 125, midTheory: 0, midPrac: 25, midResearch: 0, finalPrac: 100, finalTheory: 0, finalResearch: 0, passing: 63, label: "0 Theory + 5 Practical/Clinical" },
-  { cr: "4+0", total: 100, midTheory: 20, midPrac: 0, midResearch: 0, finalPrac: 0, finalTheory: 80, finalResearch: 0, passing: 50, label: "4 Theory + 0 Practical" },
-  { cr: "0+4", total: 100, midTheory: 0, midPrac: 20, midResearch: 0, finalPrac: 80, finalTheory: 0, finalResearch: 0, passing: 50, label: "0 Theory + 4 Practical" },
-  { cr: "3+1", total: 100, midTheory: 15, midPrac: 5, midResearch: 0, finalPrac: 20, finalTheory: 60, finalResearch: 0, passing: 50, label: "3 Theory + 1 Practical" },
-  { cr: "1+3", total: 100, midTheory: 5, midPrac: 15, midResearch: 0, finalPrac: 20, finalTheory: 60, finalResearch: 0, passing: 50, label: "1 Theory + 3 Practical" },
-  { cr: "2+2", total: 100, midTheory: 10, midPrac: 10, midResearch: 0, finalPrac: 40, finalTheory: 40, finalResearch: 0, passing: 50, label: "2 Theory + 2 Practical" },
-  { cr: "3+0", total: 75,  midTheory: 15, midPrac: 0, midResearch: 0, finalPrac: 0, finalTheory: 60, finalResearch: 0, passing: 38, label: "3 Theory + 0 Practical" },
-  { cr: "0+3", total: 75,  midTheory: 0, midPrac: 15, midResearch: 0, finalPrac: 60, finalTheory: 0, finalResearch: 0, passing: 38, label: "0 Theory + 3 Practical" },
-  { cr: "2+1", total: 75,  midTheory: 10, midPrac: 5, midResearch: 0, finalPrac: 20, finalTheory: 40, finalResearch: 0, passing: 38, label: "2 Theory + 1 Practical" },
-  { cr: "1.5+1.5", total: 75, midTheory: 7, midPrac: 8, midResearch: 0, finalPrac: 30, finalTheory: 30, finalResearch: 0, passing: 38, label: "1.5 Theory + 1.5 Practical" },
-  { cr: "2+0", total: 50,  midTheory: 10, midPrac: 0, midResearch: 0, finalPrac: 0, finalTheory: 40, finalResearch: 0, passing: 25, label: "2 Theory + 0 Practical" },
-  { cr: "1+1", total: 50,  midTheory: 5, midPrac: 5, midResearch: 0, finalPrac: 20, finalTheory: 20, finalResearch: 0, passing: 25, label: "1 Theory + 1 Practical" },
-  { cr: "1.5+0.5", total: 50, midTheory: 7, midPrac: 3, midResearch: 0, finalPrac: 10, finalTheory: 30, finalResearch: 0, passing: 25, label: "1.5 Theory + 0.5 Practical" },
-  { cr: "2.5+0.5", total: 75, midTheory: 12, midPrac: 3, midResearch: 0, finalPrac: 10, finalTheory: 50, finalResearch: 0, passing: 38, label: "2.5 Theory + 0.5 Practical" },
-  { cr: "1+0", total: 25,  midTheory: 5, midPrac: 0, midResearch: 0, finalPrac: 0, finalTheory: 20, finalResearch: 0, passing: 13, label: "1 Theory + 0 Practical" },
-  { cr: "6", total: 150,   midTheory: 0, midPrac: 0, midResearch: 30, finalPrac: 0, finalTheory: 0, finalResearch: 120, passing: 75, label: "6 Cr. Hr. Research Project" },
-  { cr: "4", total: 100,   midTheory: 10, midPrac: 10, midResearch: 0, finalPrac: 0, finalTheory: 80, finalResearch: 0, passing: 50, label: "4 Cr. Hr. Allied Subject" },
+  { cr: "0+5", total: 125, midTheory: 0, finalTheory: 0, midPrac: 25, finalPrac: 100, passing: 63, hasOspe: true, label: "0+5 (125 Marks • 0 Theory + 5 OSPE)" },
+  { cr: "4+0", total: 100, midTheory: 20, finalTheory: 80, midPrac: 0, finalPrac: 0, passing: 50, hasOspe: false, label: "4+0 (100 Marks • 4 Theory + 0 OSPE)" },
+  { cr: "0+4", total: 100, midTheory: 0, finalTheory: 0, midPrac: 20, finalPrac: 80, passing: 50, hasOspe: true, label: "0+4 (100 Marks • 0 Theory + 4 OSPE)" },
+  { cr: "3+1", total: 100, midTheory: 15, finalTheory: 60, midPrac: 5, finalPrac: 20, passing: 50, hasOspe: true, label: "3+1 (100 Marks • 3 Theory + 1 OSPE)" },
+  { cr: "1+3", total: 100, midTheory: 5, finalTheory: 60, midPrac: 15, finalPrac: 20, passing: 50, hasOspe: true, label: "1+3 (100 Marks • 1 Theory + 3 OSPE)" },
+  { cr: "2+2", total: 100, midTheory: 10, finalTheory: 40, midPrac: 10, finalPrac: 40, passing: 50, hasOspe: true, label: "2+2 (100 Marks • 2 Theory + 2 OSPE)" },
+  { cr: "3+0", total: 75,  midTheory: 15, finalTheory: 60, midPrac: 0, finalPrac: 0, passing: 38, hasOspe: false, label: "3+0 (75 Marks • 3 Theory + 0 OSPE)" },
+  { cr: "0+3", total: 75,  midTheory: 0, finalTheory: 0, midPrac: 15, finalPrac: 60, passing: 38, hasOspe: true, label: "0+3 (75 Marks • 0 Theory + 3 OSPE)" },
+  { cr: "2+1", total: 75,  midTheory: 10, finalTheory: 40, midPrac: 5, finalPrac: 20, passing: 38, hasOspe: true, label: "2+1 (75 Marks • 2 Theory + 1 OSPE)" },
+  { cr: "1.5+1.5", total: 75, midTheory: 7, finalTheory: 30, midPrac: 8, finalPrac: 30, passing: 38, hasOspe: true, label: "1.5+1.5 (75 Marks • 1.5 Theory + 1.5 OSPE)" },
+  { cr: "2+0", total: 50,  midTheory: 10, finalTheory: 40, midPrac: 0, finalPrac: 0, passing: 25, hasOspe: false, label: "2+0 (50 Marks • 2 Theory + 0 OSPE)" },
+  { cr: "1+1", total: 50,  midTheory: 5, finalTheory: 20, midPrac: 5, finalPrac: 20, passing: 25, hasOspe: true, label: "1+1 (50 Marks • 1 Theory + 1 OSPE)" },
+  { cr: "1.5+0.5", total: 50, midTheory: 7, finalTheory: 30, midPrac: 3, finalPrac: 10, passing: 25, hasOspe: true, label: "1.5+0.5 (50 Marks • 1.5 Theory + 0.5 OSPE)" },
+  { cr: "2.5+0.5", total: 75, midTheory: 12, finalTheory: 50, midPrac: 3, finalPrac: 10, passing: 38, hasOspe: true, label: "2.5+0.5 (75 Marks • 2.5 Theory + 0.5 OSPE)" },
+  { cr: "1+0", total: 25,  midTheory: 5, finalTheory: 20, midPrac: 0, finalPrac: 0, passing: 13, hasOspe: false, label: "1+0 (25 Marks • 1 Theory + 0 OSPE)" },
+  { cr: "6", total: 150,   midTheory: 30, finalTheory: 120, midPrac: 0, finalPrac: 0, passing: 75, hasOspe: false, label: "6 (150 Marks • Research Project)" },
+  { cr: "4", total: 100,   midTheory: 10, finalTheory: 80, midPrac: 10, finalPrac: 0, passing: 50, hasOspe: true, label: "4 (100 Marks • Allied Subject)" },
 ];
 
 /**
@@ -56,23 +56,91 @@ export function extractCreditHoursFromTitle(title = "") {
 }
 
 /**
- * Evaluate subject score according to user-specified passing rules:
- * - When maximum marks are 100: passing requires >= 60. Under 60 is Fail.
- * - When maximum marks are < 100: passing requires >= 50% of maximum marks.
- * - When maximum marks are > 100: passing requires >= 50% of maximum marks.
- *
- * Subject GPA & Letter Grade mapping is based on KMU Fractionalized Grading:
- * - 85+ %: A (4.00)
- * - 80-84%: A- (3.70)
- * - 75-79%: B+ (3.50)
- * - 70-74%: B (3.00)
- * - 64-69%: C+ (2.50)
- * - 60-63%: C (2.00)
- * - 54-59%: D+ (1.30) (if passing threshold met)
- * - 50-53%: D (1.00) (if passing threshold met)
- * - Below passing threshold: F (0.00)
+ * Official KMU Fractionalized Grading System (KMU Notification #KMU (Reg)/2025/3655):
+ * Grade | Grade Point  | Percentage in Semester System
+ * A     | 3.67 - 4.00  | 85 and above
+ * A-    | 3.34 - 3.66  | 80 - 84
+ * B+    | 3.01 - 3.33  | 75 - 79
+ * B     | 2.67 - 3.00  | 71 - 74
+ * B-    | 2.34 - 2.66  | 68 - 70
+ * C+    | 2.01 - 2.33  | 64 - 67
+ * C     | 1.67 - 2.00  | 61 - 63
+ * C-    | 1.31 - 1.66  | 58 - 60
+ * D+    | 1.01 - 1.30  | 54 - 57
+ * D     | 0.10 - 1.00  | 50 - 53
+ * F     | 0.00         | Below 50 (or below user custom pass percentage)
  */
-export function evaluateSubjectMarks(obtainedMarks, maxMarks) {
+export function getKmuGradeAndGpa(percentage, passPercentage = 50) {
+  if (percentage === null || percentage === undefined || isNaN(percentage)) {
+    return { grade: "-", gpa: 0.0, isPassed: false };
+  }
+
+  const p = Math.round(percentage * 100) / 100;
+  const minPass = Number(passPercentage) || 50;
+
+  if (p < minPass) {
+    return { grade: "F", gpa: 0.0, isPassed: false };
+  }
+
+  let grade = "D";
+  let gpa = 0.1;
+
+  if (p >= 85) {
+    grade = "A";
+    const ratio = Math.min((p - 85) / 15, 1);
+    gpa = 3.67 + ratio * (4.00 - 3.67);
+  } else if (p >= 80) {
+    grade = "A-";
+    const ratio = (p - 80) / 4.99;
+    gpa = 3.34 + Math.min(ratio, 1) * (3.66 - 3.34);
+  } else if (p >= 75) {
+    grade = "B+";
+    const ratio = (p - 75) / 4.99;
+    gpa = 3.01 + Math.min(ratio, 1) * (3.33 - 3.01);
+  } else if (p >= 71) {
+    grade = "B";
+    const ratio = (p - 71) / 3.99;
+    gpa = 2.67 + Math.min(ratio, 1) * (3.00 - 2.67);
+  } else if (p >= 68) {
+    grade = "B-";
+    const ratio = (p - 68) / 2.99;
+    gpa = 2.34 + Math.min(ratio, 1) * (2.66 - 2.34);
+  } else if (p >= 64) {
+    grade = "C+";
+    const ratio = (p - 64) / 3.99;
+    gpa = 2.01 + Math.min(ratio, 1) * (2.33 - 2.01);
+  } else if (p >= 61) {
+    grade = "C";
+    const ratio = (p - 61) / 2.99;
+    gpa = 1.67 + Math.min(ratio, 1) * (2.00 - 1.67);
+  } else if (p >= 58) {
+    grade = "C-";
+    const ratio = (p - 58) / 2.99;
+    gpa = 1.31 + Math.min(ratio, 1) * (1.66 - 1.31);
+  } else if (p >= 54) {
+    grade = "D+";
+    const ratio = (p - 54) / 3.99;
+    gpa = 1.01 + Math.min(ratio, 1) * (1.30 - 1.01);
+  } else if (p >= 50) {
+    grade = "D";
+    const ratio = (p - 50) / 3.99;
+    gpa = 0.10 + Math.min(ratio, 1) * (1.00 - 0.10);
+  } else {
+    grade = "D";
+    gpa = 0.10;
+  }
+
+  gpa = Math.round(gpa * 100) / 100;
+  return { grade, gpa, isPassed: true };
+}
+
+/**
+ * Evaluate subject score according to user-configured passing percentage (default 50%, range 45%-85%)
+ * and KMU Fractionalized Grading Regulations.
+ */
+export function evaluateSubjectMarks(obtainedMarks, maxMarks, passPercentage = 50) {
+  const minPass = Number(passPercentage) || 50;
+
   if (
     obtainedMarks === null ||
     obtainedMarks === undefined ||
@@ -84,69 +152,18 @@ export function evaluateSubjectMarks(obtainedMarks, maxMarks) {
       grade: "-",
       gpa: 0.0,
       percentage: null,
-      passingMarks: maxMarks === 100 ? 60 : Math.round(maxMarks * 0.5),
+      passingMarks: Math.ceil(maxMarks * (minPass / 100)),
     };
   }
 
   const percentage = (obtainedMarks / maxMarks) * 100;
   const roundedPercentage = Math.round(percentage * 10) / 10;
+  const passingMarks = Math.ceil(maxMarks * (minPass / 100));
 
-  // Passing rules:
-  // 1. If maxMarks === 100: >= 60 is passing, < 60 is fail
-  // 2. If maxMarks !== 100: >= 50% of maxMarks is passing, < 50% is fail
-  let isPassed = false;
-  let passingMarks = 0;
-
-  if (maxMarks === 100) {
-    passingMarks = 60;
-    isPassed = obtainedMarks >= 60;
-  } else {
-    passingMarks = Math.ceil(maxMarks * 0.5);
-    isPassed = obtainedMarks >= maxMarks * 0.5;
-  }
-
-  if (!isPassed) {
-    return {
-      isPassed: false,
-      grade: "F",
-      gpa: 0.0,
-      percentage: roundedPercentage,
-      passingMarks,
-    };
-  }
-
-  // Fractionalized KMU grading for passing marks:
-  let grade = "C";
-  let gpa = 2.0;
-
-  if (percentage >= 90) {
-    grade = "A+";
-    gpa = 4.0;
-  } else if (percentage >= 80) {
-    grade = "A";
-    gpa = 4.0;
-  } else if (percentage >= 75) {
-    grade = "B+";
-    gpa = 3.5;
-  } else if (percentage >= 70) {
-    grade = "B";
-    gpa = 3.0;
-  } else if (percentage >= 64) {
-    grade = "C+";
-    gpa = 2.5;
-  } else if (percentage >= 60) {
-    grade = "C";
-    gpa = 2.0;
-  } else if (percentage >= 54) {
-    grade = "D+";
-    gpa = 1.3;
-  } else if (percentage >= 50) {
-    grade = "D";
-    gpa = 1.0;
-  }
+  const { grade, gpa, isPassed } = getKmuGradeAndGpa(roundedPercentage, minPass);
 
   return {
-    isPassed: true,
+    isPassed,
     grade,
     gpa,
     percentage: roundedPercentage,
@@ -178,17 +195,19 @@ export function calculateSemesterGpa(subjectRows = []) {
 }
 
 /**
- * Overall letter grade based on Semester GPA
+ * Overall letter grade based on Semester GPA per KMU official scale
  */
 export function getOverallGradeFromGpa(gpa, isPassedOverall) {
-  if (!isPassedOverall || gpa < 1.0) return "F";
+  if (!isPassedOverall || gpa < 0.10) return "F";
   if (gpa >= 3.67) return "A";
-  if (gpa >= 3.33) return "A-";
-  if (gpa >= 3.0) return "B+";
+  if (gpa >= 3.34) return "A-";
+  if (gpa >= 3.01) return "B+";
   if (gpa >= 2.67) return "B";
-  if (gpa >= 2.33) return "B-";
-  if (gpa >= 2.0) return "C+";
+  if (gpa >= 2.34) return "B-";
+  if (gpa >= 2.01) return "C+";
   if (gpa >= 1.67) return "C";
-  if (gpa >= 1.0) return "D";
+  if (gpa >= 1.31) return "C-";
+  if (gpa >= 1.01) return "D+";
+  if (gpa >= 0.10) return "D";
   return "F";
 }

@@ -28,7 +28,6 @@ import {
 } from "../utils/kmuCreditScheme";
 import OmrGlobalEditModal from "../components/modals/OmrGlobalEditModal";
 import OmrCandidateEditModal from "../components/modals/OmrCandidateEditModal";
-import CreditHourSchemeModal from "../components/modals/CreditHourSchemeModal";
 import { saveStudentsToDB } from "../db/studentDB";
 
 const GLOBAL_CONFIG_STORAGE_KEY = "kmu_omr_global_config";
@@ -109,7 +108,6 @@ export default function OmrPage() {
 
   // Modals state
   const [showGlobalModal, setShowGlobalModal] = useState(false);
-  const [showCreditGuideModal, setShowCreditGuideModal] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState(null);
 
   // Search & Filter state
@@ -197,21 +195,20 @@ export default function OmrPage() {
         const subjectFinalMax = theoryFinalMax + ospeFinalMax;
         const subjectMaxTotal = theoryMax + pracMax;
 
-        // Credit Hours Resolution
+        // Credit Hours Resolution: uses credit hours configured by user in the Max Marks modal
         const userCustomCredits = student?.customCreditHours?.[subjectTitle];
         const globalSubjectCredits = globalConfig?.creditHoursMap?.[subjectTitle];
         const titleEmbeddedCredits = extractCreditHoursFromTitle(subjectTitle);
 
-        let resolvedCredits = userCustomCredits || globalSubjectCredits || titleEmbeddedCredits;
+        let resolvedCredits = cfg.creditHours || userCustomCredits || globalSubjectCredits || titleEmbeddedCredits;
         if (!resolvedCredits) {
-          if (subjectMaxTotal === 100) resolvedCredits = hasOspe ? "3+1" : "4+0";
+          if (subjectMaxTotal === 125) resolvedCredits = "0+5";
+          else if (subjectMaxTotal === 100) resolvedCredits = hasOspe ? "3+1" : "4+0";
           else if (subjectMaxTotal === 75) resolvedCredits = hasOspe ? "2+1" : "3+0";
           else if (subjectMaxTotal === 50) resolvedCredits = hasOspe ? "1+1" : "2+0";
           else if (subjectMaxTotal === 25) resolvedCredits = "1+0";
-          else if (subjectMaxTotal === 125) resolvedCredits = "0+5";
           else if (subjectMaxTotal === 150) resolvedCredits = "6";
-          else if (subjectMaxTotal === 140) resolvedCredits = hasOspe ? "2+1" : "3";
-          else resolvedCredits = "3";
+          else resolvedCredits = hasOspe ? "2+1" : "3+0";
         }
 
         // Find theory record
@@ -248,6 +245,8 @@ export default function OmrPage() {
 
           if (!isNaN(mid) && !isNaN(fin)) {
             theoryObtained = mid + fin;
+          } else if (isRA && !isNaN(fin)) {
+            theoryObtained = fin;
           } else if (!isNaN(parseFloat(theoryRecord.total))) {
             theoryObtained = parseFloat(theoryRecord.total);
           }
@@ -265,6 +264,8 @@ export default function OmrPage() {
 
           if (!isNaN(mid) && !isNaN(fin)) {
             pracObtained = mid + fin;
+          } else if (isRA && !isNaN(fin)) {
+            pracObtained = fin;
           } else if (!isNaN(parseFloat(ospeRecord.total))) {
             pracObtained = parseFloat(ospeRecord.total);
           }
@@ -290,7 +291,11 @@ export default function OmrPage() {
         let evalResult = { isPassed: false, grade: "-", gpa: 0.0, percentage: null };
 
         if (isSubjectApplicable && subjectTotalObtained !== null && subjectMaxTotal > 0) {
-          evalResult = evaluateSubjectMarks(subjectTotalObtained, subjectMaxTotal);
+          evalResult = evaluateSubjectMarks(
+            subjectTotalObtained,
+            subjectMaxTotal,
+            cfg.passPercentage
+          );
 
           applicableSubjectsCount++;
           if (evalResult.isPassed) {
@@ -477,7 +482,9 @@ export default function OmrPage() {
     const total = candidateResults.length;
     const passed = candidateResults.filter((c) => c.isPassed).length;
     const failed = candidateResults.filter((c) => !c.isPassed && c.hasAnyMarks).length;
-    return { total, passed, failed };
+    const regular = candidateResults.filter((c) => !c.isRA).length;
+    const reappear = candidateResults.filter((c) => c.isRA).length;
+    return { total, passed, failed, regular, reappear };
   }, [candidateResults]);
 
   // Export All as Multi-Page PDF
@@ -573,10 +580,10 @@ export default function OmrPage() {
               <button
                 onClick={() => navigate("/sheet")}
                 className="btn-sc btn-sc-outline btn-sc-sm d-flex align-items-center gap-2"
-                title="Return to Marks Sheet Dashboard"
+                title="Return to Combine Sheet Dashboard"
               >
                 <LuArrowLeft size={16} />
-                <span>Back to Sheet</span>
+                <span>Back to Combine Sheet</span>
               </button>
               <div>
                 <h4 className="fw-bold mb-0 text-dark" style={{ fontSize: "18px" }}>
@@ -588,35 +595,17 @@ export default function OmrPage() {
               </div>
             </div>
 
-            {/* Right: Actions, Global Edit, Credit Scheme, Print, Export */}
+            {/* Right: Actions, Global Edit, Print, Export */}
             <div className="d-flex align-items-center gap-2 flex-wrap">
-              <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
-                {stats.passed} Passed
-              </span>
-              <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
-                {stats.failed} Failed
-              </span>
-
               {/* Edit All OMR Entries Button */}
               <button
                 type="button"
                 onClick={() => setShowGlobalModal(true)}
                 className="btn btn-warning btn-sm d-flex align-items-center gap-1 shadow-sm fw-semibold text-dark"
-                title="Edit Institute name, upload 3 signatures, configure credit hours"
+                title="Edit Institute name and upload 3 official signatures"
               >
                 <LuSlidersHorizontal size={15} />
                 <span>Edit All OMR Entries</span>
-              </button>
-
-              {/* View KMU Credit Hours Scheme Button */}
-              <button
-                type="button"
-                onClick={() => setShowCreditGuideModal(true)}
-                className="btn-sc btn-sc-outline btn-sc-sm d-flex align-items-center gap-1"
-                title="View KMU Credit Hour Marks Distribution Chart & Calculator"
-              >
-                <LuBookOpen size={15} />
-                <span>Credit Hours Scheme</span>
               </button>
 
               <button
@@ -670,51 +659,26 @@ export default function OmrPage() {
               </div>
             </div>
 
-            <div className="col-md-5">
-              <div className="sc-filter-tabs">
-                <button
-                  type="button"
-                  className={`sc-filter-btn ${statusFilter === "all" ? "active" : ""}`}
-                  onClick={() => setStatusFilter("all")}
-                >
-                  All ({stats.total})
-                </button>
-                <button
-                  type="button"
-                  className={`sc-filter-btn ${statusFilter === "pass" ? "active" : ""}`}
-                  onClick={() => setStatusFilter("pass")}
-                >
-                  Passed ({stats.passed})
-                </button>
-                <button
-                  type="button"
-                  className={`sc-filter-btn ${statusFilter === "fail" ? "active" : ""}`}
-                  onClick={() => setStatusFilter("fail")}
-                >
-                  Failed ({stats.failed})
-                </button>
-                <button
-                  type="button"
-                  className={`sc-filter-btn ${statusFilter === "regular" ? "active" : ""}`}
-                  onClick={() => setStatusFilter("regular")}
-                >
-                  Regular
-                </button>
-                <button
-                  type="button"
-                  className={`sc-filter-btn ${statusFilter === "reappear" ? "active" : ""}`}
-                  onClick={() => setStatusFilter("reappear")}
-                >
-                  Re-appear
-                </button>
-              </div>
+            <div className={institutesList.length > 1 ? "col-md-4" : "col-md-6"}>
+              <select
+                className="sc-select w-100"
+                style={{ fontSize: "13px" }}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Candidates ({stats.total})</option>
+                <option value="pass">Passed Candidates ({stats.passed})</option>
+                <option value="fail">Failed Candidates ({stats.failed})</option>
+                <option value="regular">Regular Students ({stats.regular})</option>
+                <option value="reappear">Re-appear Students ({stats.reappear})</option>
+              </select>
             </div>
 
             {institutesList.length > 1 && (
-              <div className="col-md-3">
+              <div className="col-md-4">
                 <select
                   className="sc-select py-1 w-100"
-                  style={{ fontSize: "12.5px" }}
+                  style={{ fontSize: "13px" }}
                   value={instituteFilter}
                   onChange={(e) => setInstituteFilter(e.target.value)}
                 >
@@ -912,26 +876,29 @@ export default function OmrPage() {
                       </tbody>
                     </table>
 
-                    {/* Marks Table: Includes "Cr. hours", "Midterm / Final / Total", and "GPA" */}
+                    {/* Marks Table: Final Term Layout (Final, Total, LG, GPA) */}
                     <table className="dmc-marks-table">
                       <thead>
                         <tr>
-                          <th rowSpan="2" className="text-start" style={{ width: "24%" }}>
+                          <th rowSpan="2" className="text-start" style={{ width: "22%" }}>
                             Subject
                           </th>
                           <th rowSpan="2" className="text-center" style={{ width: "8%" }}>
                             Cr. hours
                           </th>
-                          <th colSpan="3" className="text-center group-header">
+                          <th colSpan="2" className="text-center group-header">
                             TOTAL MARKS
                           </th>
-                          <th colSpan="3" className="text-center group-header">
+                          <th colSpan="2" className="text-center group-header">
                             OBTAINED MARKS
                           </th>
-                          <th rowSpan="2" className="text-center" style={{ width: "8%" }}>
+                          <th rowSpan="2" className="text-center" style={{ width: "6%" }}>
+                            LG
+                          </th>
+                          <th rowSpan="2" className="text-center" style={{ width: "7%" }}>
                             GPA
                           </th>
-                          <th rowSpan="2" className="text-center" style={{ width: "8%" }}>
+                          <th rowSpan="2" className="text-center" style={{ width: "7%" }}>
                             Status
                           </th>
                           <th rowSpan="2" className="text-start" style={{ width: "22%" }}>
@@ -939,25 +906,10 @@ export default function OmrPage() {
                           </th>
                         </tr>
                         <tr>
-                          {isMidFinalLayout ? (
-                            <>
-                              <th className="text-center sub-th">Midterm</th>
-                              <th className="text-center sub-th">Final</th>
-                              <th className="text-center sub-th">Total</th>
-                              <th className="text-center sub-th">Midterm</th>
-                              <th className="text-center sub-th">Final</th>
-                              <th className="text-center sub-th">Total</th>
-                            </>
-                          ) : (
-                            <>
-                              <th className="text-center sub-th">Theory</th>
-                              <th className="text-center sub-th">Prac/Oral</th>
-                              <th className="text-center sub-th">Total</th>
-                              <th className="text-center sub-th">Theory</th>
-                              <th className="text-center sub-th">Prac/Oral</th>
-                              <th className="text-center sub-th">Total</th>
-                            </>
-                          )}
+                          <th className="text-center sub-th">Final</th>
+                          <th className="text-center sub-th">Total</th>
+                          <th className="text-center sub-th">Final</th>
+                          <th className="text-center sub-th">Total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -968,29 +920,30 @@ export default function OmrPage() {
                               {row.creditHours}
                             </td>
 
-                            {isMidFinalLayout ? (
-                              <>
-                                <td className="text-center">{row.midMax}</td>
-                                <td className="text-center">{row.finalMax}</td>
-                                <td className="text-center fw-semibold">{row.totalMax}</td>
+                            <td className="text-center">{row.finalMax}</td>
+                            <td className="text-center fw-semibold">{row.totalMax}</td>
 
-                                <td className="text-center">{row.midObtained}</td>
-                                <td className="text-center">{row.finalObtained}</td>
-                                <td className="text-center fw-bold">{row.totalObtained}</td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="text-center">{row.theoryMax}</td>
-                                <td className="text-center">{row.pracMax}</td>
-                                <td className="text-center fw-semibold">{row.totalMax}</td>
+                            <td className="text-center">{row.finalObtained}</td>
+                            <td className="text-center fw-bold">{row.totalObtained}</td>
 
-                                <td className="text-center">{row.theoryObtained}</td>
-                                <td className="text-center">{row.pracObtained}</td>
-                                <td className="text-center fw-bold">{row.totalObtained}</td>
-                              </>
-                            )}
+                            {/* LG (Letter Grade) Column per KMU Grading System */}
+                            <td className="text-center fw-bold">
+                              {row.isNA ? (
+                                <span className="dmc-na-pill">NA</span>
+                              ) : row.totalObtained !== "-" ? (
+                                <span
+                                  className={
+                                    row.isPassed ? "text-dark" : "text-danger fw-bold"
+                                  }
+                                >
+                                  {row.grade}
+                                </span>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
 
-                            {/* GPA column (replaces percentage column) */}
+                            {/* GPA column */}
                             <td className="text-center fw-semibold">
                               {row.isNA ? (
                                 <span className="dmc-na-pill">NA</span>
@@ -1030,56 +983,29 @@ export default function OmrPage() {
 
                         {/* Summary / Totals Row */}
                         <tr className="dmc-summary-row">
-                          <td className="fw-bold">Summary / Total</td>
+                          <td className="fw-bold">Total</td>
                           <td className="text-center fw-bold text-dark">
                             {candidate.summary.totalCreditHours}
                           </td>
 
-                          {isMidFinalLayout ? (
-                            <>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalMidMax}
-                              </td>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalFinalMax}
-                              </td>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalMaxMarks}
-                              </td>
+                          <td className="text-center fw-bold">
+                            {candidate.summary.totalFinalMax}
+                          </td>
+                          <td className="text-center fw-bold">
+                            {candidate.summary.totalMaxMarks}
+                          </td>
 
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalMidObtained}
-                              </td>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalFinalObtained}
-                              </td>
-                              <td className="text-center fw-bold text-dark">
-                                {candidate.summary.totalObtainedMarks}
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalTheoryMax}
-                              </td>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalPracMax || "--"}
-                              </td>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalMaxMarks}
-                              </td>
+                          <td className="text-center fw-bold">
+                            {candidate.summary.totalFinalObtained}
+                          </td>
+                          <td className="text-center fw-bold text-dark">
+                            {candidate.summary.totalObtainedMarks}
+                          </td>
 
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalTheoryObtained}
-                              </td>
-                              <td className="text-center fw-bold">
-                                {candidate.summary.totalPracObtained || "--"}
-                              </td>
-                              <td className="text-center fw-bold text-dark">
-                                {candidate.summary.totalObtainedMarks}
-                              </td>
-                            </>
-                          )}
+                          {/* Overall LG Grade */}
+                          <td className="text-center fw-bold text-dark">
+                            {candidate.grade}
+                          </td>
 
                           {/* Summary GPA Column */}
                           <td className="text-center fw-bold text-primary">
@@ -1089,10 +1015,12 @@ export default function OmrPage() {
                           <td className="text-center fw-bold">
                             <span
                               className={
-                                candidate.isPassed ? "dmc-pass-text" : "dmc-fail-text"
+                                candidate.isPassed
+                                  ? "dmc-status-badge dmc-status-pass"
+                                  : "dmc-status-badge dmc-status-fail"
                               }
                             >
-                              {candidate.isPassed ? "Pass" : "Fail"}
+                              {candidate.isPassed ? "PASS" : "FAIL"}
                             </span>
                           </td>
 
@@ -1102,63 +1030,6 @@ export default function OmrPage() {
                         </tr>
                       </tbody>
                     </table>
-
-                    {/* Overall Results & Remarks Bar: Displays GPA instead of Percentage */}
-                    <div className="dmc-result-bar">
-                      <div className="result-stat-item">
-                        <span className="result-label">GPA:</span>
-                        <span className="result-val-underline">
-                          {candidate.summary.semesterGpa.toFixed(2)}
-                        </span>
-                      </div>
-
-                      <div className="result-stat-item">
-                        <span className="result-label">Grade:</span>
-                        <span className="result-val-underline">
-                          {candidate.grade}
-                        </span>
-                      </div>
-
-                      <div className="result-stat-item">
-                        <span className="result-label">Remarks:</span>
-                        <span className="result-remarks-wrap">
-                          {candidate.isPassed ? (
-                            <span className="dmc-pass-stamp">PASS</span>
-                          ) : (
-                            /* CIRCLED ARROW AROUND FAIL - as shown in reference image */
-                            <div className="dmc-fail-circle-container">
-                              <span className="dmc-fail-text-boxed">FAIL</span>
-                              <svg
-                                className="dmc-circle-arrow-svg"
-                                viewBox="0 0 110 52"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <ellipse
-                                  cx="55"
-                                  cy="26"
-                                  rx="50"
-                                  ry="22"
-                                  stroke="#dc2626"
-                                  strokeWidth="2.5"
-                                  strokeDasharray="300"
-                                  strokeDashoffset="10"
-                                  strokeLinecap="round"
-                                  transform="rotate(-2 55 26)"
-                                />
-                                <path
-                                  d="M 98 12 L 106 18 L 102 26"
-                                  stroke="#dc2626"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                        </span>
-                      </div>
-                    </div>
 
                     {/* Official Signatures Area: Supports uploaded signature images */}
                     <div className="dmc-signatures-area">
@@ -1281,14 +1152,6 @@ export default function OmrPage() {
           subjects={subjects}
           globalConfig={globalConfig}
           onSave={handleSaveCandidate}
-        />
-      )}
-
-      {/* ── Credit Hours Weightage Guide Modal ── */}
-      {showCreditGuideModal && (
-        <CreditHourSchemeModal
-          show={showCreditGuideModal}
-          onHide={() => setShowCreditGuideModal(false)}
         />
       )}
 
