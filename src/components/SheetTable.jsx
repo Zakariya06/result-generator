@@ -29,14 +29,14 @@ export const buildColumns = (subjects) =>
     const baseMid = Number(s.maxMid) || 0;
     const baseFinal = Number(s.maxFinal) || 0;
     const ospeMid = s.ospe
-      ? (s.ospeMaxMid !== undefined && s.ospeMaxMid !== ""
-          ? Number(s.ospeMaxMid) || 0
-          : baseMid)
+      ? s.ospeMaxMid !== undefined && s.ospeMaxMid !== ""
+        ? Number(s.ospeMaxMid) || 0
+        : 0
       : 0;
     const ospeFinal = s.ospe
-      ? (s.ospeMaxFinal !== undefined && s.ospeMaxFinal !== ""
-          ? Number(s.ospeMaxFinal) || 0
-          : baseFinal)
+      ? s.ospeMaxFinal !== undefined && s.ospeMaxFinal !== ""
+        ? Number(s.ospeMaxFinal) || 0
+        : 0
       : 0;
     const passPercentage = Number(s.passPercentage) || 50;
 
@@ -44,16 +44,16 @@ export const buildColumns = (subjects) =>
     if (s.ospe && s.ospeType === "combined") {
       return [
         {
-          label: `${s.subject} + OSPE`,
+          label: `${s.subject} - OSPE`,
           key: `${s.subject}-combined`,
           isCombined: true,
           subjectBase: s.subject,
-          maxMid: baseMid + ospeMid,
-          maxFinal: baseFinal + ospeFinal,
+          maxMid: baseMid,
+          maxFinal: baseFinal,
           theoryMaxMid: baseMid,
           theoryMaxFinal: baseFinal,
-          ospeMaxMid: ospeMid,
-          ospeMaxFinal: ospeFinal,
+          ospeMaxMid: 0,
+          ospeMaxFinal: 0,
           passPercentage,
         },
       ];
@@ -72,7 +72,7 @@ export const buildColumns = (subjects) =>
     ];
     if (s.ospe) {
       base.push({
-        label: `${s.subject} + OSPE`,
+        label: `${s.subject} - OSPE`,
         key: `${s.subject}-ospe`,
         subjectBase: s.subject,
         isOspeSeparated: true,
@@ -88,11 +88,11 @@ const possibleKeysForColumn = (label) => {
   const l = norm(label);
   if (l.endsWith("+ ospe") || l.includes("+ ospe")) {
     const b = l.replace(/\s*\+\s*ospe\s*$/, "").trim();
-    return [l, `${b} + ospe`, `${b}+ospe`, `${b} - ospe`, `${b}-ospe`];
+    return [l, `${b} + ospe`, `${b}+ospe`, `${b} - ospe`, `${b}-ospe`, b];
   }
   if (l.endsWith("- ospe") || l.includes("- ospe")) {
     const b = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-    return [l, `${b} - ospe`, `${b}-ospe`, `${b} + ospe`, `${b}+ospe`];
+    return [l, `${b} - ospe`, `${b}-ospe`, `${b} + ospe`, `${b}+ospe`, b];
   }
   return [l];
 };
@@ -107,39 +107,27 @@ const checkStudentFailed = (student, columns) => {
     let maxTotal = item.maxMid + item.maxFinal;
 
     if (item.isCombined) {
-      // Find theory entry
       const baseNorm = norm(item.subjectBase);
-      const theorySubj = (student.subjects || []).find((s) => {
+      const related = (student.subjects || []).filter((s) => {
         if (!s) return false;
         const sName = norm(
           s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
         );
-        return sName === baseNorm && !sName.includes("ospe");
-      });
-      // Find ospe entry
-      const ospeSubj = (student.subjects || []).find((s) => {
-        if (!s) return false;
-        const sName = norm(
-          s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
-        );
-        return (
-          sName.includes("ospe") &&
-          (sName.includes(baseNorm) ||
-            sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim() === baseNorm)
-        );
+        const clean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+        return clean === baseNorm || sName === baseNorm;
       });
 
-      const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
-      const tFinal = theorySubj ? parseFloat(theorySubj.final) : NaN;
-      const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
-      const oFinal = ospeSubj ? parseFloat(ospeSubj.final) : NaN;
+      let tMid = NaN;
+      let tFinal = NaN;
+      related.forEach((s) => {
+        const m = parseFloat(s.mid);
+        if (!isNaN(m)) tMid = (!isNaN(tMid) ? tMid : 0) + m;
+        const f = parseFloat(s.final);
+        if (!isNaN(f)) tFinal = (!isNaN(tFinal) ? tFinal : 0) + f;
+      });
 
-      const combinedMid = (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
-      const combinedFinal =
-        (!isNaN(tFinal) ? tFinal : 0) + (!isNaN(oFinal) ? oFinal : 0);
-
-      if (!isNaN(tMid) || !isNaN(oMid) || !isNaN(tFinal) || !isNaN(oFinal)) {
-        obtained = combinedMid + combinedFinal;
+      if (!isNaN(tMid) || !isNaN(tFinal)) {
+        obtained = (!isNaN(tMid) ? tMid : 0) + (!isNaN(tFinal) ? tFinal : 0);
       }
     } else {
       const keys = possibleKeysForColumn(item.label);

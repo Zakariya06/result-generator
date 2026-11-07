@@ -249,12 +249,22 @@ export function mergeMidMarksData(baseData, uploadedData) {
     const isTargetOspe = targetNorm.includes("ospe");
     const targetClean = targetNorm.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
 
+    // 1. Direct match with exact subject name
+    if (
+      uploadedMidMarks[targetSubjectName] !== undefined &&
+      uploadedMidMarks[targetSubjectName] !== null &&
+      uploadedMidMarks[targetSubjectName] !== ""
+    ) {
+      return uploadedMidMarks[targetSubjectName];
+    }
+
+    // 2. Normalized match with same OSPE status
     for (const [subjKey, markVal] of Object.entries(uploadedMidMarks)) {
+      if (markVal === undefined || markVal === null || markVal === "") continue;
       const keyNorm = norm(subjKey);
       const isKeyOspe = keyNorm.includes("ospe");
       const keyClean = keyNorm.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
 
-      // Both are OSPE or both are theory
       if (isTargetOspe === isKeyOspe) {
         if (
           keyNorm === targetNorm ||
@@ -266,11 +276,27 @@ export function mergeMidMarksData(baseData, uploadedData) {
         }
       }
     }
+
+    // 3. Fallback: Match theory uploaded column into combined OSPE subject or vice versa
+    for (const [subjKey, markVal] of Object.entries(uploadedMidMarks)) {
+      if (markVal === undefined || markVal === null || markVal === "") continue;
+      const keyClean = norm(subjKey).replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+      if (
+        keyClean === targetClean ||
+        keyClean.startsWith(targetClean) ||
+        targetClean.startsWith(keyClean)
+      ) {
+        return markVal;
+      }
+    }
+
     return undefined;
   };
 
   let matchedStudentCount = 0;
   let updatedMarksCount = 0;
+
+  console.log("🔍 [Mid Marks Merge] Starting match process with", baseData.length, "base students and", uploadedData.length, "uploaded records.");
 
   const result = baseData.map((student) => {
     const uploaded = findUploaded(student);
@@ -313,13 +339,11 @@ export function mergeMidMarksData(baseData, uploadedData) {
     Object.entries(uploaded.midMarks || {}).forEach(([subjKey, markVal]) => {
       if (markVal === undefined || markVal === null || markVal === "") return;
       const keyNorm = norm(subjKey);
-      const isAlreadyIn = Array.from(existingMappedNames).some(
-        (existing) =>
-          existing === keyNorm ||
-          (existing.includes("ospe") === keyNorm.includes("ospe") &&
-            existing.replace(/\s*[-+]\s*ospe\s*$/, "").trim() ===
-              keyNorm.replace(/\s*[-+]\s*ospe\s*$/, "").trim())
-      );
+      const keyClean = keyNorm.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+      const isAlreadyIn = Array.from(existingMappedNames).some((existing) => {
+        const existClean = existing.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+        return existing === keyNorm || existClean === keyClean;
+      });
       if (!isAlreadyIn) {
         mergedSubjects.push({
           subject: subjKey,
@@ -730,10 +754,11 @@ export function mergeFinalMarksData(baseData, uploadedData, targetSubjectLabel) 
 
       if (
         sName === targetNorm ||
+        subjClean === targetClean ||
+        sName === `${targetClean} - ospe` ||
+        targetNorm === `${subjClean} - ospe` ||
         (isTargetOspe === isSubjOspe &&
-          (subjClean === targetClean ||
-            sName.includes(targetClean) ||
-            targetClean.includes(subjClean)))
+          (sName.includes(targetClean) || targetClean.includes(subjClean)))
       ) {
         foundSubject = true;
         updatedCount++;

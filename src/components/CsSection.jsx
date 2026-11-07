@@ -11,10 +11,7 @@ import {
   LuCheck,
   LuX,
   LuCircleAlert,
-  LuLayers,
-  LuSplit,
   LuClock,
-  LuPercent,
 } from "react-icons/lu";
 import { KMU_CREDIT_HOUR_SCHEME } from "../utils/kmuCreditScheme";
 
@@ -32,7 +29,7 @@ export default function CsSection() {
       setSubjects(
         contextSubjects.map((s) => ({
           ...s,
-          creditHours: s.creditHours || (s.ospe ? "2+1" : "3+0"),
+          creditHours: s.creditHours || "",
           passPercentage: s.passPercentage ?? 50,
           ospeType: s.ospeType || (s.ospe ? "separated" : "combined"),
         }))
@@ -45,12 +42,12 @@ export default function CsSection() {
     setCount(value);
     const newSubjects = Array.from({ length: value }, () => ({
       subject: "",
-      creditHours: "3+0",
+      creditHours: "",
       passPercentage: 50,
       ospe: false,
       ospeType: "separated", // "combined" | "separated"
-      maxMid: "15",
-      maxFinal: "60",
+      maxMid: "",
+      maxFinal: "70",
       ospeMaxMid: "",
       ospeMaxFinal: "",
     }));
@@ -74,39 +71,17 @@ export default function CsSection() {
       alert("Please enter course / subject names for all rows.");
       return;
     }
-    // Pre-populate defaults if not present
+
     setTempSubjects(
       subjects.map((s) => {
-        const defaultCr = s.creditHours || (s.ospe ? "2+1" : "3+0");
-        const scheme = KMU_CREDIT_HOUR_SCHEME.find((x) => x.cr === defaultCr);
         return {
           ...s,
-          creditHours: defaultCr,
+          creditHours: s.creditHours || "",
           passPercentage: s.passPercentage ?? 50,
-          maxMid:
-            s.maxMid !== "" && s.maxMid !== undefined
-              ? String(s.maxMid)
-              : scheme
-              ? String(scheme.midTheory)
-              : "15",
-          maxFinal:
-            s.maxFinal !== "" && s.maxFinal !== undefined
-              ? String(s.maxFinal)
-              : scheme
-              ? String(scheme.finalTheory)
-              : "60",
-          ospeMaxMid:
-            s.ospeMaxMid !== "" && s.ospeMaxMid !== undefined
-              ? String(s.ospeMaxMid)
-              : scheme && scheme.hasOspe
-              ? String(scheme.midPrac)
-              : "",
-          ospeMaxFinal:
-            s.ospeMaxFinal !== "" && s.ospeMaxFinal !== undefined
-              ? String(s.ospeMaxFinal)
-              : scheme && scheme.hasOspe
-              ? String(scheme.finalPrac)
-              : "",
+          maxMid: s.maxMid !== "" && s.maxMid !== undefined ? String(s.maxMid) : "",
+          maxFinal: s.maxFinal !== "" && s.maxFinal !== undefined ? String(s.maxFinal) : "70",
+          ospeMaxMid: s.ospeMaxMid !== "" && s.ospeMaxMid !== undefined ? String(s.ospeMaxMid) : "",
+          ospeMaxFinal: s.ospeMaxFinal !== "" && s.ospeMaxFinal !== undefined ? String(s.ospeMaxFinal) : "",
         };
       })
     );
@@ -119,14 +94,29 @@ export default function CsSection() {
     updated[idx].creditHours = newCr;
 
     if (scheme) {
-      updated[idx].ospe = scheme.hasOspe;
-      if (scheme.hasOspe && !updated[idx].ospeType) {
-        updated[idx].ospeType = "separated";
+      const isCombined = updated[idx].ospe && updated[idx].ospeType === "combined";
+
+      if (isCombined) {
+        // Combined OSPE: Only two fields (Mid & Final)
+        updated[idx].maxMid = String((scheme.midTheory ?? 0) + (scheme.midPrac ?? 0) || 15);
+        updated[idx].maxFinal = "70";
+        updated[idx].ospeMaxMid = "";
+        updated[idx].ospeMaxFinal = "";
+      } else if (updated[idx].ospe) {
+        // Separated OSPE: Theory Mid/Final + OSPE Mid/Final
+        updated[idx].maxMid = String(scheme.midTheory ?? 15);
+        updated[idx].maxFinal = "70";
+        updated[idx].ospeMaxMid = String(scheme.midPrac || 10);
+        updated[idx].ospeMaxFinal = String(scheme.finalPrac || 20);
+      } else {
+        // Theory Only
+        updated[idx].maxMid = String(scheme.midTheory || 15);
+        updated[idx].maxFinal = "70";
+        updated[idx].ospeMaxMid = "";
+        updated[idx].ospeMaxFinal = "";
       }
-      updated[idx].maxMid = String(scheme.midTheory ?? 0);
-      updated[idx].maxFinal = String(scheme.finalTheory ?? 0);
-      updated[idx].ospeMaxMid = scheme.hasOspe ? String(scheme.midPrac ?? 0) : "";
-      updated[idx].ospeMaxFinal = scheme.hasOspe ? String(scheme.finalPrac ?? 0) : "";
+
+      updated[idx].passPercentage = 50;
     }
     setTempSubjects(updated);
   };
@@ -135,29 +125,35 @@ export default function CsSection() {
     const invalid = tempSubjects.some((s) => {
       if (!s.creditHours) return true;
       if (s.maxMid === "" || s.maxFinal === "") return true;
-      if (s.ospe && (s.ospeMaxMid === "" || s.ospeMaxFinal === "")) return true;
+      if (s.ospe && s.ospeType === "separated" && (s.ospeMaxMid === "" || s.ospeMaxFinal === "")) {
+        return true;
+      }
       const passP = Number(s.passPercentage);
-      if (isNaN(passP) || passP < 45 || passP > 85) return true;
+      if (isNaN(passP) || passP < 30 || passP > 90) return true;
       return false;
     });
+
     if (invalid) {
       alert(
-        "Please ensure all fields are filled: select credit hours, enter valid maximum marks, and set a pass percentage between 45% and 85%."
+        "Please ensure Credit Hours are selected and valid marks are entered for each subject."
       );
       return;
     }
 
-    const updated = tempSubjects.map((s) => ({
-      ...s,
-      creditHours: s.creditHours || (s.ospe ? "2+1" : "3+0"),
-      passPercentage: Number(s.passPercentage) || 50,
-      maxMid: Number(s.maxMid),
-      maxFinal: Number(s.maxFinal),
-      ospe: Boolean(s.ospe),
-      ospeType: s.ospe ? s.ospeType || "separated" : undefined,
-      ospeMaxMid: s.ospe ? Number(s.ospeMaxMid) : undefined,
-      ospeMaxFinal: s.ospe ? Number(s.ospeMaxFinal) : undefined,
-    }));
+    const updated = tempSubjects.map((s) => {
+      const isCombined = s.ospe && s.ospeType === "combined";
+      return {
+        ...s,
+        creditHours: s.creditHours || "",
+        passPercentage: Number(s.passPercentage) || 50,
+        maxMid: Number(s.maxMid),
+        maxFinal: Number(s.maxFinal),
+        ospe: Boolean(s.ospe),
+        ospeType: s.ospe ? s.ospeType || "separated" : undefined,
+        ospeMaxMid: s.ospe && !isCombined ? Number(s.ospeMaxMid) : undefined,
+        ospeMaxFinal: s.ospe && !isCombined ? Number(s.ospeMaxFinal) : undefined,
+      };
+    });
 
     setSubjects(updated);
     saveSubjects(updated);
@@ -384,7 +380,7 @@ export default function CsSection() {
               Configure Maximum Marks
             </Modal.Title>
             <div className="text-muted" style={{ fontSize: "12.5px" }}>
-              Define the maximum score thresholds for Mid and Final assessments
+              Define credit hours and assessment maximum marks
             </div>
           </div>
         </Modal.Header>
@@ -396,248 +392,308 @@ export default function CsSection() {
           >
             <LuCircleAlert size={16} className="text-primary flex-shrink-0" />
             <span>
-              Select the course credit hours (Theory + OSPE) according to the KMU examination scheme. Maximum marks and passing thresholds will automatically configure.
+              Select the course credit hours (e.g. 1+0, 2+0, 2+1, 3+0) to configure maximum marks.
             </span>
           </div>
 
           <div className="d-flex flex-column gap-3">
-            {tempSubjects.map((subj, idx) => (
-              <div
-                key={idx}
-                className="p-3 rounded-3 border bg-white shadow-sm"
-              >
-                {/* Top Row: Subject Title on Left, Credit Hours Dropdown on Right */}
-                <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 border-bottom pb-2">
-                  <div className="d-flex align-items-center gap-2">
-                    <span
-                      className="badge bg-dark text-white rounded-circle"
-                      style={{
-                        width: "22px",
-                        height: "22px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "11px",
-                      }}
-                    >
-                      {idx + 1}
-                    </span>
-                    <span
-                      className="fw-bold text-dark"
-                      style={{ fontSize: "14.5px" }}
-                    >
-                      {subj.subject || `Subject ${idx + 1}`}
-                    </span>
-                    {subj.ospe ? (
+            {tempSubjects.map((subj, idx) => {
+              const isCombined = subj.ospe && subj.ospeType === "combined";
+              const isSeparated = subj.ospe && subj.ospeType === "separated";
+
+              return (
+                <div
+                  key={idx}
+                  className="p-3 rounded-3 border bg-white shadow-sm"
+                >
+                  {/* Top Header: Subject Number, Name, OSPE Badge, and Credit Hours Dropdown */}
+                  <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 border-bottom pb-2">
+                    <div className="d-flex align-items-center gap-2">
                       <span
-                        className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1"
-                        style={{ fontSize: "11px" }}
-                      >
-                        {subj.ospeType === "combined"
-                          ? "Theory + OSPE (Combined)"
-                          : "Theory + OSPE (Separated)"}
-                      </span>
-                    ) : (
-                      <span
-                        className="badge bg-light text-muted border px-2 py-1"
-                        style={{ fontSize: "11px" }}
-                      >
-                        Theory Only
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Credit Hours Dropdown on Right */}
-                  <div className="d-flex align-items-center gap-2">
-                    <LuClock size={15} className="text-primary flex-shrink-0" />
-                    <label className="small fw-bold text-secondary mb-0">
-                      Credit Hours:
-                    </label>
-                    <select
-                      className="sc-select sc-select-sm"
-                      style={{ minWidth: "160px", fontWeight: "600" }}
-                      value={subj.creditHours || ""}
-                      onChange={(e) => handleCreditHourChange(idx, e.target.value)}
-                    >
-                      <option value="">Select Cr. Hr.</option>
-                      {KMU_CREDIT_HOUR_SCHEME.map((opt) => (
-                        <option key={opt.cr} value={opt.cr}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Bottom Row: Marks Configuration */}
-                <div className="row g-3">
-                  <div className="col-md-2 col-6">
-                    <Form.Label className="small fw-semibold text-secondary">
-                      Mid Marks (Theory)
-                    </Form.Label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 15"
-                      className="sc-input"
-                      value={subj.maxMid}
-                      onChange={(e) => {
-                        const updated = [...tempSubjects];
-                        updated[idx].maxMid = e.target.value;
-                        setTempSubjects(updated);
-                      }}
-                      min="0"
-                      required
-                    />
-                  </div>
-
-                  <div className="col-md-2 col-6">
-                    <Form.Label className="small fw-semibold text-secondary">
-                      Final Marks (Theory)
-                    </Form.Label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 60"
-                      className="sc-input"
-                      value={subj.maxFinal}
-                      onChange={(e) => {
-                        const updated = [...tempSubjects];
-                        updated[idx].maxFinal = e.target.value;
-                        setTempSubjects(updated);
-                      }}
-                      min="0"
-                      required
-                    />
-                  </div>
-
-                  {subj.ospe && (
-                    <>
-                      <div className="col-md-2 col-6">
-                        <Form.Label className="small fw-semibold text-secondary">
-                          OSPE Mid Marks
-                        </Form.Label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 5"
-                          className="sc-input"
-                          value={subj.ospeMaxMid || ""}
-                          onChange={(e) => {
-                            const updated = [...tempSubjects];
-                            updated[idx].ospeMaxMid = e.target.value;
-                            setTempSubjects(updated);
-                          }}
-                          min="0"
-                          required
-                        />
-                      </div>
-
-                      <div className="col-md-2 col-6">
-                        <Form.Label className="small fw-semibold text-secondary">
-                          OSPE Final Marks
-                        </Form.Label>
-                        <input
-                          type="number"
-                          placeholder="e.g. 20"
-                          className="sc-input"
-                          value={subj.ospeMaxFinal || ""}
-                          onChange={(e) => {
-                            const updated = [...tempSubjects];
-                            updated[idx].ospeMaxFinal = e.target.value;
-                            setTempSubjects(updated);
-                          }}
-                          min="0"
-                          required
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {/* Subject Pass Percentage Input */}
-                  <div className={subj.ospe ? "col-md-4 col-12" : "col-md-4 col-12"}>
-                    <Form.Label className="small fw-semibold text-secondary d-flex align-items-center justify-content-between">
-                      <span>Pass Threshold (%)</span>
-                      <span className="text-muted" style={{ fontSize: "11px" }}>45% – 85%</span>
-                    </Form.Label>
-                    <div className="input-group">
-                      <input
-                        type="number"
-                        placeholder="50"
-                        className="form-control sc-input"
-                        value={subj.passPercentage ?? 50}
-                        onChange={(e) => {
-                          const updated = [...tempSubjects];
-                          updated[idx].passPercentage = e.target.value;
-                          setTempSubjects(updated);
+                        className="badge bg-dark text-white rounded-circle"
+                        style={{
+                          width: "22px",
+                          height: "22px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "11px",
                         }}
-                        min="45"
-                        max="85"
-                        step="1"
-                        required
-                      />
-                      <span className="input-group-text bg-light text-muted" style={{ fontSize: "13px" }}>
-                        %
+                      >
+                        {idx + 1}
                       </span>
+                      <span
+                        className="fw-bold text-dark"
+                        style={{ fontSize: "14.5px" }}
+                      >
+                        {subj.subject || `Subject ${idx + 1}`}
+                      </span>
+                      {subj.ospe ? (
+                        <span
+                          className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1"
+                          style={{ fontSize: "11px" }}
+                        >
+                          {isCombined
+                            ? "Theory + OSPE (Combined)"
+                            : "Theory + OSPE (Separated)"}
+                        </span>
+                      ) : (
+                        <span
+                          className="badge bg-light text-muted border px-2 py-1"
+                          style={{ fontSize: "11px" }}
+                        >
+                          Theory Only
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Simple Credit Hours Dropdown */}
+                    <div className="d-flex align-items-center gap-2">
+                      <LuClock size={15} className="text-primary flex-shrink-0" />
+                      <label
+                        className="small fw-semibold text-secondary mb-0"
+                        style={{ whiteSpace: "nowrap", fontSize: "12px" }}
+                      >
+                        Credit Hours:
+                      </label>
+                      <select
+                        className="sc-select sc-select-sm"
+                        style={{ minWidth: "130px", fontWeight: "600", fontSize: "13px" }}
+                        value={subj.creditHours || ""}
+                        onChange={(e) => handleCreditHourChange(idx, e.target.value)}
+                      >
+                        <option value="">Select Cr. Hr.</option>
+                        {KMU_CREDIT_HOUR_SCHEME.map((opt) => (
+                          <option key={opt.cr} value={opt.cr}>
+                            {opt.cr}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 
-                  {/* If OSPE, also show quick toggle for separated vs combined */}
-                  {subj.ospe && (
-                    <div className="col-12 mt-2">
-                      <div
-                        className="d-flex align-items-center gap-3 p-2 rounded-2 bg-light border"
-                        style={{ fontSize: "12px" }}
-                      >
-                        <span className="fw-semibold text-secondary">OSPE Layout Mode:</span>
-                        <div className="form-check form-check-inline m-0">
-                          <input
-                            className="form-check-input"
-                            type="radio"
-                            name={`modal_ospeType_${idx}`}
-                            id={`modal_ospeType_sep_${idx}`}
-                            value="separated"
-                            checked={subj.ospeType !== "combined"}
-                            onChange={() => {
-                              const updated = [...tempSubjects];
-                              updated[idx].ospeType = "separated";
-                              setTempSubjects(updated);
-                            }}
-                          />
-                          <label
-                            className="form-check-label text-dark fw-medium"
-                            htmlFor={`modal_ospeType_sep_${idx}`}
-                            style={{ cursor: "pointer" }}
-                          >
-                            Separated Columns (Theory & OSPE standalone)
-                          </label>
-                        </div>
+                  {/* Below Area: ONLY show marks inputs once Credit Hours is selected */}
+                  {!subj.creditHours ? (
+                    <div
+                      className="py-2 text-center text-muted fst-italic"
+                      style={{ fontSize: "12.5px" }}
+                    >
+                      Please select Credit Hours above to view and configure marks.
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-wrap align-items-end justify-content-center gap-3 pt-2 animate-fade-in">
+                      {/* If COMBINED OSPE or THEORY ONLY: Show only Mid Marks and Final Marks */}
+                      {isCombined || !subj.ospe ? (
+                        <>
+                          <div style={{ width: "115px", flexShrink: 0 }}>
+                            <label
+                              className="d-block text-center mb-1"
+                              style={{
+                                fontSize: "11.5px",
+                                fontWeight: "600",
+                                color: "#475569",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Mid Marks
+                            </label>
+                            <input
+                              type="number"
+                              className="sc-input text-center"
+                              style={{ height: "36px", fontSize: "13px" }}
+                              value={subj.maxMid}
+                              onChange={(e) => {
+                                const updated = [...tempSubjects];
+                                updated[idx].maxMid = e.target.value;
+                                setTempSubjects(updated);
+                              }}
+                              min="0"
+                              required
+                            />
+                          </div>
 
-                        <div className="form-check form-check-inline m-0">
+                          <div style={{ width: "115px", flexShrink: 0 }}>
+                            <label
+                              className="d-block text-center mb-1"
+                              style={{
+                                fontSize: "11.5px",
+                                fontWeight: "600",
+                                color: "#475569",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Final Marks
+                            </label>
+                            <input
+                              type="number"
+                              className="sc-input text-center"
+                              style={{ height: "36px", fontSize: "13px" }}
+                              value={subj.maxFinal}
+                              onChange={(e) => {
+                                const updated = [...tempSubjects];
+                                updated[idx].maxFinal = e.target.value;
+                                setTempSubjects(updated);
+                              }}
+                              min="0"
+                              required
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        /* If SEPARATED OSPE: Show Theory Mid, Theory Final, OSPE Mid, OSPE Final */
+                        <>
+                          <div style={{ width: "105px", flexShrink: 0 }}>
+                            <label
+                              className="d-block text-center mb-1"
+                              style={{
+                                fontSize: "11.5px",
+                                fontWeight: "600",
+                                color: "#475569",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Theory Mid
+                            </label>
+                            <input
+                              type="number"
+                              className="sc-input text-center"
+                              style={{ height: "36px", fontSize: "13px" }}
+                              value={subj.maxMid}
+                              onChange={(e) => {
+                                const updated = [...tempSubjects];
+                                updated[idx].maxMid = e.target.value;
+                                setTempSubjects(updated);
+                              }}
+                              min="0"
+                              required
+                            />
+                          </div>
+
+                          <div style={{ width: "105px", flexShrink: 0 }}>
+                            <label
+                              className="d-block text-center mb-1"
+                              style={{
+                                fontSize: "11.5px",
+                                fontWeight: "600",
+                                color: "#475569",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Theory Final
+                            </label>
+                            <input
+                              type="number"
+                              className="sc-input text-center"
+                              style={{ height: "36px", fontSize: "13px" }}
+                              value={subj.maxFinal}
+                              onChange={(e) => {
+                                const updated = [...tempSubjects];
+                                updated[idx].maxFinal = e.target.value;
+                                setTempSubjects(updated);
+                              }}
+                              min="0"
+                              required
+                            />
+                          </div>
+
+                          <div style={{ width: "105px", flexShrink: 0 }}>
+                            <label
+                              className="d-block text-center mb-1"
+                              style={{
+                                fontSize: "11.5px",
+                                fontWeight: "600",
+                                color: "#475569",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              OSPE Mid
+                            </label>
+                            <input
+                              type="number"
+                              className="sc-input text-center"
+                              style={{ height: "36px", fontSize: "13px" }}
+                              value={subj.ospeMaxMid || ""}
+                              onChange={(e) => {
+                                const updated = [...tempSubjects];
+                                updated[idx].ospeMaxMid = e.target.value;
+                                setTempSubjects(updated);
+                              }}
+                              min="0"
+                              required
+                            />
+                          </div>
+
+                          <div style={{ width: "105px", flexShrink: 0 }}>
+                            <label
+                              className="d-block text-center mb-1"
+                              style={{
+                                fontSize: "11.5px",
+                                fontWeight: "600",
+                                color: "#475569",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              OSPE Final
+                            </label>
+                            <input
+                              type="number"
+                              className="sc-input text-center"
+                              style={{ height: "36px", fontSize: "13px" }}
+                              value={subj.ospeMaxFinal || ""}
+                              onChange={(e) => {
+                                const updated = [...tempSubjects];
+                                updated[idx].ospeMaxFinal = e.target.value;
+                                setTempSubjects(updated);
+                              }}
+                              min="0"
+                              required
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {/* Small Pass % Input (2 digits) */}
+                      <div style={{ width: "85px", flexShrink: 0 }}>
+                        <label
+                          className="d-block text-center mb-1"
+                          style={{
+                            fontSize: "11.5px",
+                            fontWeight: "600",
+                            color: "#475569",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Pass %
+                        </label>
+                        <div className="input-group" style={{ height: "36px" }}>
                           <input
-                            className="form-check-input"
-                            type="radio"
-                            name={`modal_ospeType_${idx}`}
-                            id={`modal_ospeType_comb_${idx}`}
-                            value="combined"
-                            checked={subj.ospeType === "combined"}
-                            onChange={() => {
+                            type="number"
+                            className="form-control sc-input text-center px-1"
+                            style={{ height: "36px", fontSize: "13px" }}
+                            value={subj.passPercentage ?? 50}
+                            onChange={(e) => {
                               const updated = [...tempSubjects];
-                              updated[idx].ospeType = "combined";
+                              updated[idx].passPercentage = e.target.value;
                               setTempSubjects(updated);
                             }}
+                            min="30"
+                            max="90"
+                            step="1"
+                            required
                           />
-                          <label
-                            className="form-check-label text-dark fw-medium"
-                            htmlFor={`modal_ospeType_comb_${idx}`}
-                            style={{ cursor: "pointer" }}
+                          <span
+                            className="input-group-text bg-light text-muted px-2"
+                            style={{ fontSize: "11px" }}
                           >
-                            Combined Column (Theory + OSPE summed)
-                          </label>
+                            %
+                          </span>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Modal.Body>
 

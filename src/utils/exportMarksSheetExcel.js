@@ -37,16 +37,16 @@ export const buildColumns = (subjects) =>
     if (s.ospe && s.ospeType === "combined") {
       return [
         {
-          label: `${s.subject} + OSPE`,
+          label: `${s.subject} - OSPE`,
           key: `${s.subject}-combined`,
           isCombined: true,
           subjectBase: s.subject,
-          maxMid: baseMid + ospeMid,
-          maxFinal: baseFinal + ospeFinal,
+          maxMid: baseMid,
+          maxFinal: baseFinal,
           theoryMaxMid: baseMid,
           theoryMaxFinal: baseFinal,
-          ospeMaxMid: ospeMid,
-          ospeMaxFinal: ospeFinal,
+          ospeMaxMid: 0,
+          ospeMaxFinal: 0,
         },
       ];
     }
@@ -62,7 +62,7 @@ export const buildColumns = (subjects) =>
     ];
     if (s.ospe) {
       base.push({
-        label: `${s.subject} + OSPE`,
+        label: `${s.subject} - OSPE`,
         key: `${s.subject}-ospe`,
         subjectBase: s.subject,
         isOspeSeparated: true,
@@ -77,11 +77,11 @@ const possibleKeysForColumn = (label) => {
   const l = norm(label);
   if (l.endsWith("+ ospe") || l.includes("+ ospe")) {
     const base = l.replace(/\s*\+\s*ospe\s*$/, "").trim();
-    return [l, `${base} + ospe`, `${base}+ospe`, `${base} - ospe`, `${base}-ospe`];
+    return [l, `${base} + ospe`, `${base}+ospe`, `${base} - ospe`, `${base}-ospe`, base];
   }
   if (l.endsWith("- ospe") || l.includes("- ospe")) {
     const base = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-    return [l, `${base} - ospe`, `${base}-ospe`, `${base} + ospe`, `${base}+ospe`];
+    return [l, `${base} - ospe`, `${base}-ospe`, `${base} + ospe`, `${base}+ospe`, base];
   }
   return [l];
 };
@@ -159,44 +159,56 @@ const buildRowValues = (student, columns) => {
 
   columns.forEach((col) => {
     if (col.isCombined) {
-      const theorySubj = findTheoryEntry(student.subjects, col.subjectBase);
-      const ospeSubj = findOspeEntry(student.subjects, col.subjectBase);
+      const baseNorm = norm(col.subjectBase);
+      const relatedSubjs = (student.subjects || []).filter((s) => {
+        if (!s) return false;
+        const sName = norm(
+          s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+        );
+        const clean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+        return clean === baseNorm || sName === baseNorm;
+      });
 
-      const isTheoryNA =
-        theorySubj &&
-        (String(theorySubj.mid ?? "").toUpperCase() === "NA" ||
-          String(theorySubj.final ?? "").toUpperCase() === "NA");
-      const isOspeNA =
-        ospeSubj &&
-        (String(ospeSubj.mid ?? "").toUpperCase() === "NA" ||
-          String(ospeSubj.final ?? "").toUpperCase() === "NA");
+      const isAnyNA = relatedSubjs.some(
+        (s) =>
+          String(s?.mid ?? "").toUpperCase() === "NA" ||
+          String(s?.final ?? "").toUpperCase() === "NA"
+      );
 
-      if (isTheoryNA || isOspeNA) {
+      if (isAnyNA || !relatedSubjs.length) {
         marksCells.push("NA", "NA", "NA");
         exceedFlags.push(false, false, false);
         return;
       }
 
-      if (!theorySubj && !ospeSubj) {
-        marksCells.push("NA", "NA", "NA");
-        exceedFlags.push(false, false, false);
-        return;
-      }
+      let combinedMid = 0;
+      let hasMid = false;
+      let combinedFinal = 0;
+      let hasFinal = false;
 
-      const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
-      const tFinal = theorySubj ? parseFloat(theorySubj.final) : NaN;
-      const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
-      const oFinal = ospeSubj ? parseFloat(ospeSubj.final) : NaN;
+      relatedSubjs.forEach((s) => {
+        const m = parseFloat(s.mid);
+        if (!isNaN(m)) {
+          combinedMid += m;
+          hasMid = true;
+        }
+        const f = parseFloat(s.final);
+        if (!isNaN(f)) {
+          combinedFinal += f;
+          hasFinal = true;
+        }
+      });
 
-      const combinedMid = (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
-      const combinedFinal =
-        (!isNaN(tFinal) ? tFinal : 0) + (!isNaN(oFinal) ? oFinal : 0);
-      const combinedTotal = combinedMid + combinedFinal;
+      const combinedTotal = (hasMid ? combinedMid : 0) + (hasFinal ? combinedFinal : 0);
 
-      const midExceeds = col.maxMid > 0 && combinedMid > col.maxMid;
-      const finalExceeds = col.maxFinal > 0 && combinedFinal > col.maxFinal;
+      const midExceeds = col.maxMid > 0 && hasMid && combinedMid > col.maxMid;
+      const finalExceeds = col.maxFinal > 0 && hasFinal && combinedFinal > col.maxFinal;
 
-      marksCells.push(combinedMid, combinedFinal, combinedTotal);
+      marksCells.push(
+        hasMid ? combinedMid : "",
+        hasFinal ? combinedFinal : "",
+        hasMid || hasFinal ? combinedTotal : ""
+      );
       exceedFlags.push(midExceeds, finalExceeds, false);
       return;
     }

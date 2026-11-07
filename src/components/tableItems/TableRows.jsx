@@ -16,60 +16,52 @@ const TableRows = (props) => {
     const colBaseNorm = norm(colItem.subjectBase || colItem.label);
     const isColOspe = colItem.isOspeSeparated || colLabelNorm.includes("ospe");
 
-    return subjectsList.find((s) => {
+    // 1. First priority: Match OSPE status precisely
+    const exactMatch = subjectsList.find((s) => {
       if (!s) return false;
       const sName = norm(
         s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
       );
       if (!sName) return false;
       const isSubjOspe = sName.includes("ospe");
-
-      // 1. Differentiate between OSPE column and Theory column
       if (isColOspe !== isSubjOspe) return false;
 
-      // 2. Direct string equality check
       if (sName === colLabelNorm) return true;
-
-      // 3. Clean string match removing +/- ospe
       const sClean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
       const colClean = colLabelNorm.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
-
-      if (sClean === colClean || sClean === colBaseNorm) return true;
-      if (sName === colBaseNorm) return true;
-
-      return false;
+      return sClean === colClean || sClean === colBaseNorm || sName === colBaseNorm;
     });
+
+    if (exactMatch) return exactMatch;
+
+    // 2. Fallback: If not separated OSPE column, match base name even if OSPE suffix differs
+    if (!isColOspe) {
+      return subjectsList.find((s) => {
+        if (!s) return false;
+        const sName = norm(
+          s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
+        );
+        const sClean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+        return sClean === colBaseNorm || sName === colBaseNorm;
+      });
+    }
+
+    return null;
   };
 
-  // Find theory subject for a combined column
-  const findTheorySubject = (subjectsList = [], subjectBase) => {
+  // Find all related subjects for a combined column
+  const getCombinedSubjects = (subjectsList = [], subjectBase) => {
     const baseNorm = norm(subjectBase);
-    return subjectsList.find((s) => {
+    return subjectsList.filter((s) => {
       if (!s) return false;
       const sName = norm(
         s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
       );
-      if (!sName || sName.includes("ospe")) return false;
-      return (
-        sName === baseNorm ||
-        sName.startsWith(baseNorm) ||
-        baseNorm.startsWith(sName)
-      );
-    });
-  };
-
-  // Find OSPE subject for a combined column
-  const findOspeSubject = (subjectsList = [], subjectBase) => {
-    const baseNorm = norm(subjectBase);
-    return subjectsList.find((s) => {
-      if (!s) return false;
-      const sName = norm(
-        s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
-      );
-      if (!sName || !sName.includes("ospe")) return false;
+      if (!sName) return false;
       const clean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
       return (
         clean === baseNorm ||
+        sName === baseNorm ||
         clean.startsWith(baseNorm) ||
         baseNorm.startsWith(clean)
       );
@@ -140,25 +132,18 @@ const TableRows = (props) => {
           const subjectCells = columns.map((item, i) => {
             // ── 1. COMBINED MODE COLUMN ──────────────────────────────────
             if (item.isCombined) {
-              const theorySubj = findTheorySubject(
-                student.subjects || [],
-                item.subjectBase
-              );
-              const ospeSubj = findOspeSubject(
+              const relatedSubjs = getCombinedSubjects(
                 student.subjects || [],
                 item.subjectBase
               );
 
-              const isTheoryNA =
-                theorySubj &&
-                (String(theorySubj.mid ?? "").toUpperCase() === "NA" ||
-                  String(theorySubj.final ?? "").toUpperCase() === "NA");
-              const isOspeNA =
-                ospeSubj &&
-                (String(ospeSubj.mid ?? "").toUpperCase() === "NA" ||
-                  String(ospeSubj.final ?? "").toUpperCase() === "NA");
+              const isAnyNA = relatedSubjs.some(
+                (s) =>
+                  String(s?.mid ?? "").toUpperCase() === "NA" ||
+                  String(s?.final ?? "").toUpperCase() === "NA"
+              );
 
-              if (!theorySubj && !ospeSubj) {
+              if (!relatedSubjs.length) {
                 if (!student.isRA) {
                   return (
                     <React.Fragment key={i}>
@@ -183,7 +168,7 @@ const TableRows = (props) => {
                 );
               }
 
-              if (isTheoryNA || isOspeNA) {
+              if (isAnyNA) {
                 return (
                   <React.Fragment key={i}>
                     <td className="text-center">
@@ -199,19 +184,25 @@ const TableRows = (props) => {
                 );
               }
 
-              const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
-              const tFinal = theorySubj ? parseFloat(theorySubj.final) : NaN;
-              const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
-              const oFinal = ospeSubj ? parseFloat(ospeSubj.final) : NaN;
+              let combinedMid = 0;
+              let hasMid = false;
+              let combinedFinal = 0;
+              let hasFinal = false;
 
-              const hasMid = !isNaN(tMid) || !isNaN(oMid);
-              const hasFinal = !isNaN(tFinal) || !isNaN(oFinal);
+              relatedSubjs.forEach((s) => {
+                const m = parseFloat(s.mid);
+                if (!isNaN(m)) {
+                  combinedMid += m;
+                  hasMid = true;
+                }
+                const f = parseFloat(s.final);
+                if (!isNaN(f)) {
+                  combinedFinal += f;
+                  hasFinal = true;
+                }
+              });
 
-              const combinedMid =
-                (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
-              const combinedFinal =
-                (!isNaN(tFinal) ? tFinal : 0) + (!isNaN(oFinal) ? oFinal : 0);
-              const combinedTotal = combinedMid + combinedFinal;
+              const combinedTotal = (hasMid ? combinedMid : 0) + (hasFinal ? combinedFinal : 0);
 
               const maxTotal = item.maxMid + item.maxFinal;
               const minPassThreshold = maxTotal * ((item.passPercentage || 50) / 100);
@@ -223,9 +214,9 @@ const TableRows = (props) => {
                 }
               }
 
-              const midExceeds = item.maxMid > 0 && combinedMid > item.maxMid;
+              const midExceeds = item.maxMid > 0 && hasMid && combinedMid > item.maxMid;
               const finalExceeds =
-                item.maxFinal > 0 && combinedFinal > item.maxFinal;
+                item.maxFinal > 0 && hasFinal && combinedFinal > item.maxFinal;
 
               return (
                 <React.Fragment key={i}>

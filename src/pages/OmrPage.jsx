@@ -178,18 +178,21 @@ export default function OmrPage() {
       const subjectRows = (subjects || []).map((cfg) => {
         const subjectTitle = cfg.subject;
         const hasOspe = Boolean(cfg.ospe);
+        const isCombined = hasOspe && cfg.ospeType === "combined";
 
         const theoryMidMax = Number(cfg.maxMid) || 0;
         const theoryFinalMax = Number(cfg.maxFinal) || 0;
         const theoryMax = theoryMidMax + theoryFinalMax;
 
-        const ospeMidMax = hasOspe
-          ? (Number(cfg.ospeMaxMid) ?? theoryMidMax) || 0
-          : 0;
-        const ospeFinalMax = hasOspe
-          ? (Number(cfg.ospeMaxFinal) ?? theoryFinalMax) || 0
-          : 0;
-        const pracMax = hasOspe ? ospeMidMax + ospeFinalMax : 0;
+        const ospeMidMax =
+          hasOspe && !isCombined
+            ? (Number(cfg.ospeMaxMid) ?? 0) || 0
+            : 0;
+        const ospeFinalMax =
+          hasOspe && !isCombined
+            ? (Number(cfg.ospeMaxFinal) ?? 0) || 0
+            : 0;
+        const pracMax = hasOspe && !isCombined ? ospeMidMax + ospeFinalMax : 0;
 
         const subjectMidMax = theoryMidMax + ospeMidMax;
         const subjectFinalMax = theoryFinalMax + ospeFinalMax;
@@ -219,16 +222,27 @@ export default function OmrPage() {
           : null;
 
         // Check for NA
-        const isTheoryNA =
-          !theoryRecord ||
-          String(theoryRecord?.mid ?? "").toUpperCase() === "NA" ||
-          String(theoryRecord?.final ?? "").toUpperCase() === "NA";
+        const isTheoryNA = isCombined
+          ? false
+          : (!theoryRecord ||
+              String(theoryRecord?.mid ?? "").toUpperCase() === "NA" ||
+              String(theoryRecord?.final ?? "").toUpperCase() === "NA");
 
         const isOspeNA =
           hasOspe &&
+          !isCombined &&
           (!ospeRecord ||
             String(ospeRecord?.mid ?? "").toUpperCase() === "NA" ||
             String(ospeRecord?.final ?? "").toUpperCase() === "NA");
+
+        const isCombinedNA =
+          isCombined &&
+          ((theoryRecord &&
+            (String(theoryRecord?.mid ?? "").toUpperCase() === "NA" ||
+              String(theoryRecord?.final ?? "").toUpperCase() === "NA")) ||
+            (ospeRecord &&
+              (String(ospeRecord?.mid ?? "").toUpperCase() === "NA" ||
+                String(ospeRecord?.final ?? "").toUpperCase() === "NA")));
 
         // If Re-appear student and not registered in this subject
         const isNotEnrolled = isRA && !theoryRecord && !ospeRecord;
@@ -326,8 +340,7 @@ export default function OmrPage() {
           totalPracMax += pracMax;
         }
 
-        const isCombined = hasOspe && cfg.ospeType === "combined";
-        const displayTitle = isCombined ? `${subjectTitle} + OSPE` : subjectTitle;
+        const displayTitle = isCombined ? `${subjectTitle} - OSPE` : subjectTitle;
 
         return {
           title: displayTitle,
@@ -339,12 +352,16 @@ export default function OmrPage() {
           totalMax: subjectMaxTotal,
           midObtained: isNotEnrolled
             ? "NA"
+            : isCombinedNA
+            ? "NA"
             : isTheoryNA && (!hasOspe || isOspeNA)
             ? "NA"
             : subjectMidObtained !== null
             ? subjectMidObtained
             : "-",
           finalObtained: isNotEnrolled
+            ? "NA"
+            : isCombinedNA
             ? "NA"
             : isTheoryNA && (!hasOspe || isOspeNA)
             ? "NA"
@@ -355,7 +372,7 @@ export default function OmrPage() {
           theoryMax: isCombined ? subjectMaxTotal : theoryMax,
           pracMax: isCombined ? "--" : (hasOspe ? pracMax : "--"),
           theoryObtained: isCombined
-            ? (isTheoryNA || isOspeNA ? "NA" : subjectTotalObtained !== null ? subjectTotalObtained : "-")
+            ? (isCombinedNA ? "NA" : subjectTotalObtained !== null ? subjectTotalObtained : "-")
             : (isTheoryNA ? "NA" : theoryObtained !== null ? theoryObtained : "-"),
           pracObtained: isCombined || !hasOspe
             ? "--"
@@ -369,7 +386,7 @@ export default function OmrPage() {
             ? "NA"
             : subjectTotalObtained !== null
             ? subjectTotalObtained
-            : isTheoryNA || isOspeNA
+            : isCombinedNA || isTheoryNA || isOspeNA
             ? "NA"
             : "-",
           gpa: evalResult.gpa,

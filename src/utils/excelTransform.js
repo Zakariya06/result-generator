@@ -1,6 +1,6 @@
 /* ================================
    Helpers
-================================ */
+=============================== */
 
 const normalize = (value = "") => value.toString().trim().toLowerCase();
 
@@ -190,36 +190,77 @@ export const ensureSubjectEntries = (studentsData, subjectsConfig) => {
       .toLowerCase();
 
   return (studentsData || []).map((student) => {
-    // 🚫 Re-appear students only carry the subjects from their actual
-    // re-appear file. Backfilling the FULL subject list onto them would
-    // make every subject "applicable" with empty marks — which hides the
-    // real "this subject doesn't apply to this RA student" case and shows
-    // a blank/"-" instead of the correct red "NA" in the table.
     if (isReAppearRoll(student.rollNumber)) return student;
 
-    const existing = Array.isArray(student.subjects) ? student.subjects : [];
-    const existingNames = new Set(
-      existing.map((s) => norm(s?.subject ?? s?.label ?? s?.name ?? "")),
-    );
+    let existing = Array.isArray(student.subjects) ? [...student.subjects] : [];
 
-    const toAdd = [];
     subjectsConfig.forEach((cfg) => {
       const baseName = String(cfg.subject || "").trim();
       if (!baseName) return;
 
-      if (!existingNames.has(norm(baseName))) {
-        toAdd.push({ subject: baseName, mid: "", final: "" });
-      }
+      const baseNorm = norm(baseName);
+      const ospeName = `${baseName} - OSPE`;
+      const ospeNorm = norm(ospeName);
+      const ospePlusNorm = norm(`${baseName} + OSPE`);
 
-      if (cfg.ospe) {
-        const ospeName = `${baseName} - OSPE`;
-        if (!existingNames.has(norm(ospeName))) {
-          toAdd.push({ subject: ospeName, mid: "", final: "" });
+      if (cfg.ospe && cfg.ospeType === "combined") {
+        // COMBINED OSPE:
+        // Must only have single combined entry "${baseName} - OSPE"
+        const theoryIdx = existing.findIndex((s) => {
+          const n = norm(s?.subject ?? s?.label ?? s?.name ?? "");
+          return n === baseNorm;
+        });
+
+        const ospeIdx = existing.findIndex((s) => {
+          const n = norm(s?.subject ?? s?.label ?? s?.name ?? "");
+          return n === ospeNorm || n === ospePlusNorm;
+        });
+
+        if (theoryIdx !== -1 && ospeIdx !== -1) {
+          // Merge theory into ospe entry and remove separated theory
+          const tSub = existing[theoryIdx];
+          const oSub = existing[ospeIdx];
+          existing[ospeIdx] = {
+            ...oSub,
+            subject: ospeName,
+            mid: oSub.mid || tSub.mid || "",
+            final: oSub.final || tSub.final || "",
+          };
+          existing.splice(theoryIdx, 1);
+        } else if (theoryIdx !== -1 && ospeIdx === -1) {
+          // Convert theory into combined ospeName
+          existing[theoryIdx] = {
+            ...existing[theoryIdx],
+            subject: ospeName,
+          };
+        } else if (theoryIdx === -1 && ospeIdx !== -1) {
+          existing[ospeIdx].subject = ospeName;
+        } else {
+          // Neither existed, add combined
+          existing.push({ subject: ospeName, mid: "", final: "" });
+        }
+      } else {
+        // SEPARATED OSPE OR THEORY ONLY
+        const hasBase = existing.some((s) => {
+          const n = norm(s?.subject ?? s?.label ?? s?.name ?? "");
+          return n === baseNorm;
+        });
+        if (!hasBase) {
+          existing.push({ subject: baseName, mid: "", final: "" });
+        }
+
+        if (cfg.ospe) {
+          const hasOspe = existing.some((s) => {
+            const n = norm(s?.subject ?? s?.label ?? s?.name ?? "");
+            return n === ospeNorm || n === ospePlusNorm;
+          });
+          if (!hasOspe) {
+            existing.push({ subject: ospeName, mid: "", final: "" });
+          }
         }
       }
     });
 
-    if (!toAdd.length) return student;
-    return { ...student, subjects: [...existing, ...toAdd] };
+    return { ...student, subjects: existing };
   });
 };

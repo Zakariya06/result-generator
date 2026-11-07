@@ -166,7 +166,9 @@ export default function UploadFiles() {
 
     if (base?.length && formatted?.length) {
       const merged = mergeMidMarksData(base, formatted);
-      console.log("Merged students result:", merged);
+      console.log("Merged students result count:", merged.length);
+      console.log("Sample merged student:", merged[0]);
+      console.log("Sample merged subjects:", merged[0]?.subjects);
       saveAllStudentData(merged);
       alert(`Mid marks uploaded successfully! Processed ${formatted.length} students.`);
     } else {
@@ -196,6 +198,11 @@ export default function UploadFiles() {
       return;
     }
 
+    const sObj = subjects.find(
+      (s) => String(s.subject ?? "").trim().toLowerCase() === String(selectedSubject ?? "").trim().toLowerCase()
+    );
+    const isCombinedCourse = sObj?.ospe && sObj?.ospeType === "combined";
+
     let formatted;
     let targetSubjectLabel = selectedSubject;
 
@@ -205,7 +212,7 @@ export default function UploadFiles() {
         selectedSubject,
         { isOspe },
       );
-      if (isOspe) targetSubjectLabel = `${selectedSubject} - OSPE`;
+      if (isOspe || isCombinedCourse) targetSubjectLabel = `${selectedSubject} - OSPE`;
     } else {
       formatted = isOspe
         ? formatFinalMarksOnlineOspe(
@@ -217,7 +224,7 @@ export default function UploadFiles() {
             allFiles.map((f) => f.data),
             selectedSubject,
           );
-      if (isOspe) targetSubjectLabel = `${selectedSubject} - OSPE`;
+      if (isOspe || isCombinedCourse) targetSubjectLabel = `${selectedSubject} - OSPE`;
     }
 
     if (!formatted.length) {

@@ -3,25 +3,30 @@
  * Based on official KMU Notifications & Allied Health Sciences Weightage Charts
  */
 
-// Official weightage table from KMU Marks Distribution Table
+// Official weightage table from KMU Marks Distribution Table - sorted cleanly in sequence 1, 2, 3, 4, 5, 6
 export const KMU_CREDIT_HOUR_SCHEME = [
-  { cr: "0+5", total: 125, midTheory: 0, finalTheory: 0, midPrac: 25, finalPrac: 100, passing: 63, hasOspe: true, label: "0+5 (125 Marks • 0 Theory + 5 OSPE)" },
-  { cr: "4+0", total: 100, midTheory: 20, finalTheory: 80, midPrac: 0, finalPrac: 0, passing: 50, hasOspe: false, label: "4+0 (100 Marks • 4 Theory + 0 OSPE)" },
-  { cr: "0+4", total: 100, midTheory: 0, finalTheory: 0, midPrac: 20, finalPrac: 80, passing: 50, hasOspe: true, label: "0+4 (100 Marks • 0 Theory + 4 OSPE)" },
-  { cr: "3+1", total: 100, midTheory: 15, finalTheory: 60, midPrac: 5, finalPrac: 20, passing: 50, hasOspe: true, label: "3+1 (100 Marks • 3 Theory + 1 OSPE)" },
-  { cr: "1+3", total: 100, midTheory: 5, finalTheory: 60, midPrac: 15, finalPrac: 20, passing: 50, hasOspe: true, label: "1+3 (100 Marks • 1 Theory + 3 OSPE)" },
-  { cr: "2+2", total: 100, midTheory: 10, finalTheory: 40, midPrac: 10, finalPrac: 40, passing: 50, hasOspe: true, label: "2+2 (100 Marks • 2 Theory + 2 OSPE)" },
-  { cr: "3+0", total: 75,  midTheory: 15, finalTheory: 60, midPrac: 0, finalPrac: 0, passing: 38, hasOspe: false, label: "3+0 (75 Marks • 3 Theory + 0 OSPE)" },
-  { cr: "0+3", total: 75,  midTheory: 0, finalTheory: 0, midPrac: 15, finalPrac: 60, passing: 38, hasOspe: true, label: "0+3 (75 Marks • 0 Theory + 3 OSPE)" },
-  { cr: "2+1", total: 75,  midTheory: 10, finalTheory: 40, midPrac: 5, finalPrac: 20, passing: 38, hasOspe: true, label: "2+1 (75 Marks • 2 Theory + 1 OSPE)" },
-  { cr: "1.5+1.5", total: 75, midTheory: 7, finalTheory: 30, midPrac: 8, finalPrac: 30, passing: 38, hasOspe: true, label: "1.5+1.5 (75 Marks • 1.5 Theory + 1.5 OSPE)" },
-  { cr: "2+0", total: 50,  midTheory: 10, finalTheory: 40, midPrac: 0, finalPrac: 0, passing: 25, hasOspe: false, label: "2+0 (50 Marks • 2 Theory + 0 OSPE)" },
-  { cr: "1+1", total: 50,  midTheory: 5, finalTheory: 20, midPrac: 5, finalPrac: 20, passing: 25, hasOspe: true, label: "1+1 (50 Marks • 1 Theory + 1 OSPE)" },
-  { cr: "1.5+0.5", total: 50, midTheory: 7, finalTheory: 30, midPrac: 3, finalPrac: 10, passing: 25, hasOspe: true, label: "1.5+0.5 (50 Marks • 1.5 Theory + 0.5 OSPE)" },
-  { cr: "2.5+0.5", total: 75, midTheory: 12, finalTheory: 50, midPrac: 3, finalPrac: 10, passing: 38, hasOspe: true, label: "2.5+0.5 (75 Marks • 2.5 Theory + 0.5 OSPE)" },
-  { cr: "1+0", total: 25,  midTheory: 5, finalTheory: 20, midPrac: 0, finalPrac: 0, passing: 13, hasOspe: false, label: "1+0 (25 Marks • 1 Theory + 0 OSPE)" },
-  { cr: "6", total: 150,   midTheory: 30, finalTheory: 120, midPrac: 0, finalPrac: 0, passing: 75, hasOspe: false, label: "6 (150 Marks • Research Project)" },
-  { cr: "4", total: 100,   midTheory: 10, finalTheory: 80, midPrac: 10, finalPrac: 0, passing: 50, hasOspe: true, label: "4 (100 Marks • Allied Subject)" },
+  // 1 Credit Hour
+  { cr: "1+0", total: 25, midTheory: 5, finalTheory: 20, midPrac: 0, finalPrac: 0, passing: 13, hasOspe: false },
+  // 2 Credit Hours
+  { cr: "2+0", total: 50, midTheory: 10, finalTheory: 40, midPrac: 0, finalPrac: 0, passing: 25, hasOspe: false },
+  { cr: "1+1", total: 50, midTheory: 5, finalTheory: 20, midPrac: 5, finalPrac: 20, passing: 25, hasOspe: true },
+  { cr: "1.5+0.5", total: 50, midTheory: 7, finalTheory: 30, midPrac: 3, finalPrac: 10, passing: 25, hasOspe: true },
+  // 3 Credit Hours
+  { cr: "3+0", total: 75, midTheory: 15, finalTheory: 60, midPrac: 0, finalPrac: 0, passing: 38, hasOspe: false },
+  { cr: "2+1", total: 75, midTheory: 10, finalTheory: 40, midPrac: 5, finalPrac: 20, passing: 38, hasOspe: true },
+  { cr: "1.5+1.5", total: 75, midTheory: 7, finalTheory: 30, midPrac: 8, finalPrac: 30, passing: 38, hasOspe: true },
+  { cr: "2.5+0.5", total: 75, midTheory: 12, finalTheory: 50, midPrac: 3, finalPrac: 10, passing: 38, hasOspe: true },
+  { cr: "0+3", total: 75, midTheory: 0, finalTheory: 0, midPrac: 15, finalPrac: 60, passing: 38, hasOspe: true },
+  // 4 Credit Hours
+  { cr: "4+0", total: 100, midTheory: 20, finalTheory: 80, midPrac: 0, finalPrac: 0, passing: 50, hasOspe: false },
+  { cr: "3+1", total: 100, midTheory: 15, finalTheory: 60, midPrac: 5, finalPrac: 20, passing: 50, hasOspe: true },
+  { cr: "2+2", total: 100, midTheory: 10, finalTheory: 40, midPrac: 10, finalPrac: 40, passing: 50, hasOspe: true },
+  { cr: "1+3", total: 100, midTheory: 5, finalTheory: 60, midPrac: 15, finalPrac: 20, passing: 50, hasOspe: true },
+  { cr: "0+4", total: 100, midTheory: 0, finalTheory: 0, midPrac: 20, finalPrac: 80, passing: 50, hasOspe: true },
+  // 5 Credit Hours
+  { cr: "0+5", total: 125, midTheory: 0, finalTheory: 0, midPrac: 25, finalPrac: 100, passing: 63, hasOspe: true },
+  // 6 Credit Hours
+  { cr: "6", total: 150, midTheory: 30, finalTheory: 120, midPrac: 0, finalPrac: 0, passing: 75, hasOspe: false },
 ];
 
 /**

@@ -10,24 +10,24 @@ export const buildEvaluationColumns = (subjectsConfig = []) => {
     const ospeMid = s.ospe
       ? s.ospeMaxMid !== undefined && s.ospeMaxMid !== ""
         ? Number(s.ospeMaxMid) || 0
-        : baseMid
+        : 0
       : 0;
     const ospeFinal = s.ospe
       ? s.ospeMaxFinal !== undefined && s.ospeMaxFinal !== ""
         ? Number(s.ospeMaxFinal) || 0
-        : baseFinal
+        : 0
       : 0;
     const passPercentage = Number(s.passPercentage) || 50;
 
     if (s.ospe && s.ospeType === "combined") {
       return [
         {
-          label: `${s.subject} + OSPE`,
+          label: `${s.subject} - OSPE`,
           key: `${s.subject}-combined`,
           isCombined: true,
           subjectBase: s.subject,
-          maxMid: baseMid + ospeMid,
-          maxFinal: baseFinal + ospeFinal,
+          maxMid: baseMid,
+          maxFinal: baseFinal,
           passPercentage,
         },
       ];
@@ -45,7 +45,7 @@ export const buildEvaluationColumns = (subjectsConfig = []) => {
     ];
     if (s.ospe) {
       base.push({
-        label: `${s.subject} + OSPE`,
+        label: `${s.subject} - OSPE`,
         key: `${s.subject}-ospe`,
         subjectBase: s.subject,
         isOspeSeparated: true,
@@ -62,11 +62,11 @@ const possibleKeysForSubject = (label) => {
   const l = norm(label);
   if (l.endsWith("+ ospe") || l.includes("+ ospe")) {
     const b = l.replace(/\s*\+\s*ospe\s*$/, "").trim();
-    return [l, `${b} + ospe`, `${b}+ospe`, `${b} - ospe`, `${b}-ospe`];
+    return [l, `${b} + ospe`, `${b}+ospe`, `${b} - ospe`, `${b}-ospe`, b];
   }
   if (l.endsWith("- ospe") || l.includes("- ospe")) {
     const b = l.replace(/\s*-\s*ospe\s*$/, "").trim();
-    return [l, `${b} - ospe`, `${b}-ospe`, `${b} + ospe`, `${b}+ospe`];
+    return [l, `${b} - ospe`, `${b}-ospe`, `${b} + ospe`, `${b}+ospe`, b];
   }
   return [l];
 };
@@ -93,50 +93,36 @@ export const evaluateStudentPassFail = (student, columns = []) => {
 
     if (item.isCombined) {
       const baseNorm = norm(item.subjectBase);
-      const theorySubj = (student.subjects || []).find((s) => {
+      const related = (student.subjects || []).filter((s) => {
         if (!s) return false;
         const sName = norm(
           s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
         );
-        return sName === baseNorm && !sName.includes("ospe");
+        const clean = sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim();
+        return clean === baseNorm || sName === baseNorm;
       });
 
-      const ospeSubj = (student.subjects || []).find((s) => {
-        if (!s) return false;
-        const sName = norm(
-          s?.label ?? s?.name ?? s?.subject ?? s?.subjectName ?? s?.title ?? ""
-        );
-        return (
-          sName.includes("ospe") &&
-          (sName.includes(baseNorm) ||
-            sName.replace(/\s*[-+]\s*ospe\s*$/, "").trim() === baseNorm)
-        );
+      const isAnyNA = related.some(
+        (s) =>
+          String(s?.mid ?? "").toUpperCase() === "NA" ||
+          String(s?.final ?? "").toUpperCase() === "NA"
+      );
+
+      if (!related.length || isAnyNA) return;
+
+      let tMid = NaN;
+      let tFinal = NaN;
+      related.forEach((s) => {
+        const m = parseFloat(s.mid);
+        if (!isNaN(m)) tMid = (!isNaN(tMid) ? tMid : 0) + m;
+        const f = parseFloat(s.final);
+        if (!isNaN(f)) tFinal = (!isNaN(tFinal) ? tFinal : 0) + f;
       });
 
-      const tMid = theorySubj ? parseFloat(theorySubj.mid) : NaN;
-      const tFinal = theorySubj ? parseFloat(theorySubj.final) : NaN;
-      const oMid = ospeSubj ? parseFloat(ospeSubj.mid) : NaN;
-      const oFinal = ospeSubj ? parseFloat(ospeSubj.final) : NaN;
-
-      const isTheoryNA =
-        theorySubj &&
-        (String(theorySubj.mid ?? "").toUpperCase() === "NA" ||
-          String(theorySubj.final ?? "").toUpperCase() === "NA");
-      const isOspeNA =
-        ospeSubj &&
-        (String(ospeSubj.mid ?? "").toUpperCase() === "NA" ||
-          String(ospeSubj.final ?? "").toUpperCase() === "NA");
-
-      // Skip un-enrolled / NA
-      if ((!theorySubj && !ospeSubj) || (isTheoryNA && isOspeNA)) return;
-
-      // Only evaluate if final marks are entered (not pending)
-      const hasFinalUploaded = !isNaN(tFinal) || !isNaN(oFinal);
+      const hasFinalUploaded = !isNaN(tFinal);
       if (!hasFinalUploaded && !isRA) return;
 
-      const combinedMid = (!isNaN(tMid) ? tMid : 0) + (!isNaN(oMid) ? oMid : 0);
-      const combinedFinal = (!isNaN(tFinal) ? tFinal : 0) + (!isNaN(oFinal) ? oFinal : 0);
-      obtained = combinedMid + combinedFinal;
+      obtained = (!isNaN(tMid) ? tMid : 0) + (!isNaN(tFinal) ? tFinal : 0);
     } else {
       const keys = possibleKeysForSubject(item.label);
       const matched = (student.subjects || []).find((s) => {

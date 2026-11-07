@@ -64,14 +64,10 @@ export default function FinalMarksUploader({
     if (!sObj) return false;
 
     if (uploadOspe) {
-      // In OSPE mode: show subjects that have OSPE (both separated and combined)
+      // In OSPE mode: show subjects that have OSPE
       return Boolean(sObj.ospe);
     } else {
-      // In Theory mode: show non-OSPE subjects and separated OSPE subjects.
-      // Combined OSPE subjects only show in the OSPE field.
-      if (sObj.ospe && sObj.ospeType === "combined") {
-        return false;
-      }
+      // In Theory / Main Final mode: show all subjects (for combined, it updates the single combined course)
       return true;
     }
   });
